@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+enum UserRole {
+  RIDER
+  DRIVER
+  ADMIN
+  SECURITY
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum AccountStatus {
+  ACTIVE
+  BLOCKED
+  PENDING
+}
+
+model User {
+  id String @id @default(cuid())
+
+  fullName    String
+  email       String @unique
+  phoneNumber String @unique
+  password    String
+
+  role   UserRole @default(RIDER)
+  gender Gender
+
+  accountStatus   AccountStatus @default(PENDING)
+  isPhoneVerified Boolean       @default(false)
+
+  riderProfile RiderProfile?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model RiderProfile {
+  id String @id @default(cuid())
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  profileImage      String?
+  emergencyContact  String?
+  preferredLanguage String?
+  homeAddress       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("rider_profiles")
+}
