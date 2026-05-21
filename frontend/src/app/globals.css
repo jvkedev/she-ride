@@ -98,3 +98,63 @@ textarea,
 select {
   font: inherit;
 }
+
+/* Rider booking map */
+.leaflet-container {
+  font: inherit;
+  height: 100%;
+  width: 100%;
+  cursor: grab;
+  touch-action: none;
+  z-index: 0;
+}
+
+.leaflet-container:active {
+  cursor: grabbing;
+}
+
+.leaflet-pane,
+.leaflet-tile-pane,
+.leaflet-overlay-pane {
+  pointer-events: auto;
+}
+
+.rider-booking-panel {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+/* Rentals & parcel left panel scroll */
+.rider-panel-scroll {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #b8b8b8 #f0f0f0;
+}
+
+.rider-panel-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.rider-panel-scroll::-webkit-scrollbar-track {
+  background: #f0f0f0;
+  border-radius: 4px;
+}
+
+.rider-panel-scroll::-webkit-scrollbar-thumb {
+  background: #b8b8b8;
+  border-radius: 4px;
+}
+
+.rider-panel-scroll::-webkit-scrollbar-thumb:hover {
+  background: #9a9a9a;
+}
+
+/* Rider menu sheet — quick open/close */
+.rider-menu-sheet[data-side="right"][data-open],
+.rider-menu-sheet[data-side="right"][data-closed] {
+  animation-duration: 200ms;
+}
+
+body:has(.rider-menu-sheet[data-open]) [data-slot="sheet-overlay"] {
+  animation-duration: 200ms;
+}

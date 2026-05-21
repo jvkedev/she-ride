@@ -19,11 +19,9 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <ToastProvider />
-        <Navbar />
-        <main>
-        {children}
-        </main>
-        <Footer />
+        {/* <Navbar /> */}
+        <main>{children}</main>
+        {/* <Footer /> */}
       </body>
     </html>
   );
