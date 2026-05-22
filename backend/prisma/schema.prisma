@@ -6,9 +6,10 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
 enum UserRole {
   RIDER
-  DRIVER
+  CAPTAIN
   ADMIN
   SECURITY
 }
@@ -25,6 +26,62 @@ enum AccountStatus {
   PENDING
 }
 
+enum OnboardingStatus {
+  PENDING
+  RIDER_COMPLETED
+  CAPTAIN_COMPLETED
+}
+
+enum RidePreference {
+  QUIET
+  CHATTY
+  WOMEN_ONLY
+  PET_FRIENDLY
+}
+
+enum VehicleType {
+  BIKE
+  AUTO
+  CAR
+  SUV
+}
+
+enum DocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RideStatus {
+  SEARCHING
+  ACCEPTED
+  ARRIVING
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  UPI
+  WALLET
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum OtpType {
+  PHONE_VERIFICATION
+  LOGIN
+  PASSWORD_RESET
+  RIDE_START
+}
+
 model User {
   id String @id @default(cuid())
 
@@ -34,12 +91,16 @@ model User {
   password    String
 
   role   UserRole @default(RIDER)
-  gender Gender
+
+  onboardingStatus  OnboardingStatus  @default(PENDING)
 
   accountStatus   AccountStatus @default(PENDING)
   isPhoneVerified Boolean       @default(false)
 
-  riderProfile RiderProfile?
+  otps Otp[]
+
+  rider   Rider?
+  captain Captain?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -47,19 +108,203 @@ model User {
   @@map("users")
 }
 
-model RiderProfile {
+model Rider {
+  id String @id @default(uuid())
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  profileImage String?
+
+  gender      Gender?
+  dateOfBirth DateTime?
+
+  emergencyContactName  String?
+  emergencyContactPhone String?
+
+  defaultPickupAddress String?
+  defaultDropAddress   String?
+
+  walletBalance Float @default(0)
+
+  ridePreference RidePreference?
+
+  rides Ride[]
+
+  safetyAlertEnabled Boolean @default(true)
+  shareLiveLocation  Boolean @default(true)
+
+  totalRides     Int @default(0)
+  cancelledRides Int @default(0)
+
+  averageRating Float @default(5)
+
+  lastRideAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Captain {
   id String @id @default(cuid())
 
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  profileImage      String?
-  emergencyContact  String?
-  preferredLanguage String?
-  homeAddress       String?
+  profileImage String?
+
+  gender      Gender?
+  dateOfBirth DateTime?
+
+  isVerified Boolean @default(false)
+  isOnline   Boolean @default(false)
+
+  rides Ride[]
+
+  rating Float @default(5)
+
+  totalTrips Int @default(0)
+
+  currentLatitude  Float?
+  currentLongitude Float?
+
+  vehicle  Vehicle?
+  document CaptainDocument?
+
+  verifiedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("rider_profiles")
+  @@index([isOnline])
+  @@map("captains")
+}
+
+model CaptainDocument {
+  id String @id @default(cuid())
+
+  captainId String  @unique
+  captain   Captain @relation(fields: [captainId], references: [id], onDelete: Cascade)
+
+  aadhaarNumber        String? @unique
+  drivingLicenseNumber String? @unique
+
+  aadhaarFrontImage String?
+  aadhaarBackImage  String?
+
+  drivingLicenseImage String?
+
+  rcImage String?
+
+  selfieImage String?
+
+  documentStatus DocumentStatus @default(PENDING)
+
+  rejectionReason String?
+
+  uploadedAt DateTime  @default(now())
+  verifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("captain_documents")
+}
+
+model Vehicle {
+  id String @id @default(cuid())
+
+  captainId String  @unique
+  captain   Captain @relation(fields: [captainId], references: [id], onDelete: Cascade)
+
+  vehicleType VehicleType
+
+  brand String
+  model String
+  color String
+
+  vehicleNumber String @unique
+
+  seatCapacity Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("vehicles")
+}
+
+model Ride {
+  id String @id @default(cuid())
+
+  riderId String
+  rider   Rider  @relation(fields: [riderId], references: [id], onDelete: Cascade)
+
+  captainId String?
+  captain   Captain? @relation(fields: [captainId], references: [id])
+
+  pickupAddress String
+  dropAddress   String
+
+  pickupLatitude  Float
+  pickupLongitude Float
+
+  dropLatitude  Float
+  dropLongitude Float
+
+  distanceInKm  Float?
+  estimatedFare Float?
+  finalFare     Float?
+
+  vehicleType VehicleType
+
+  paymentMethod PaymentMethod @default(CASH)
+
+  paymentStatus PaymentStatus @default(PENDING)
+
+  startedAt   DateTime?
+  completedAt DateTime?
+  cancelledAt DateTime?
+
+  status RideStatus @default(SEARCHING)
+
+  acceptedAt DateTime?
+  arrivedAt  DateTime?
+
+  cancelledBy        UserRole?
+  cancellationReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  otps      Otp[]
+
+  @@index([riderId])
+  @@index([captainId])
+  @@index([status])
+  @@map("rides")
+}
+
+model Otp {
+  id String @id @default(cuid())
+
+  phoneNumber String
+
+  code String
+
+  type OtpType
+
+  expiresAt DateTime
+
+  isUsed Boolean @default(false)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  rideId String?
+  ride   Ride?   @relation(fields: [rideId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([phoneNumber])
+  @@index([code])
+  @@map("otps")
 }

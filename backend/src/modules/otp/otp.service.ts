@@ -1,10 +1,11 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Queue, QueueEvents } from 'bullmq';
+import { OtpType } from '@prisma/client';
 import { redis } from '../../config/redis';
 
 @Injectable()
-export class OtpService {
+export class OtpService implements OnModuleDestroy {
   private readonly queueEvents = new QueueEvents('otp-queue', {
     connection: {
       host: '127.0.0.1',
@@ -18,51 +19,51 @@ export class OtpService {
     return Math.floor(100000 + Math.random() * 900000).toString();
   }
 
-  async sendRegistrationOtp(userId: string, phoneNumber: string, otp: string) {
-    const job = await this.otpQueue.add('send-rider-register-otp', {
-      userId,
-      phoneNumber,
-      otp,
-    });
-
-    await job.waitUntilFinished(this.queueEvents);
-
-    return {
-      success: true,
-    };
+  private getKey(type: OtpType, identifier: string) {
+    return `otp:${type}:${identifier}`;
   }
 
-  async sendLoginOtp(userId: string, phoneNumber: string) {
+  async sendOtp(
+    type: OtpType,
+    identifier: string,
+    phoneNumber: string,
+  ): Promise<{ success: boolean }> {
     const otp = this.generateOtp();
 
-    await redis.setex(`login-otp:${userId}`, 600, otp);
+    const key = this.getKey(type, identifier);
 
-    const job = await this.otpQueue.add('send-rider-login-otp', {
-      userId,
+    await redis.setex(key, 600, otp);
+
+    const job = await this.otpQueue.add('send-otp', {
       phoneNumber,
       otp,
+      type,
     });
 
     await job.waitUntilFinished(this.queueEvents);
 
-    return {
-      success: true,
-    };
+    return { success: true };
   }
 
-  async verifyOtp(userId: string, otp: string): Promise<boolean> {
-    const savedOtp = await redis.get(`login-otp:${userId}`);
+  async verifyOtp(
+    type: OtpType,
+    identifier: string,
+    otp: string,
+  ): Promise<boolean> {
+    const key = this.getKey(type, identifier);
 
-    if (!savedOtp) {
-      return false;
-    }
+    const savedOtp = await redis.get(key);
 
-    if (savedOtp !== otp) {
-      return false;
-    }
+    if (!savedOtp) return false;
 
-    await redis.del(`login-otp:${userId}`);
+    if (savedOtp !== otp) return false;
+
+    await redis.del(key);
 
     return true;
+  }
+
+  async onModuleDestroy() {
+    await this.queueEvents.close();
   }
 }

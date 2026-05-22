@@ -124,8 +124,9 @@ select {
   scrollbar-color: var(--border) transparent;
 }
 
-/* Rentals & parcel left panel scroll */
-.rider-panel-scroll {
+/* Rider & captain panel scroll */
+.rider-panel-scroll,
+.captain-panel-scroll {
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: #b8b8b8 #f0f0f0;
@@ -145,16 +146,36 @@ select {
   border-radius: 4px;
 }
 
-.rider-panel-scroll::-webkit-scrollbar-thumb:hover {
+.rider-panel-scroll::-webkit-scrollbar-thumb:hover,
+.captain-panel-scroll::-webkit-scrollbar-thumb:hover {
   background: #9a9a9a;
 }
 
-/* Rider menu sheet — quick open/close */
-.rider-menu-sheet[data-side="right"][data-open],
-.rider-menu-sheet[data-side="right"][data-closed] {
+.captain-panel-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.captain-panel-scroll::-webkit-scrollbar-track {
+  background: #f0f0f0;
+  border-radius: 4px;
+}
+
+.captain-panel-scroll::-webkit-scrollbar-thumb {
+  background: #b8b8b8;
+  border-radius: 4px;
+}
+
+body:has(.rider-menu-sheet[data-open]) [data-slot="sheet-overlay"],
+body:has(.captain-menu-sheet[data-open]) [data-slot="sheet-overlay"] {
   animation-duration: 200ms;
 }
 
-body:has(.rider-menu-sheet[data-open]) [data-slot="sheet-overlay"] {
+.captain-menu-sheet[data-side="left"][data-open],
+.captain-menu-sheet[data-side="left"][data-closed] {
+  animation-duration: 200ms;
+}
+
+.rider-menu-sheet[data-side="left"][data-open],
+.rider-menu-sheet[data-side="left"][data-closed] {
   animation-duration: 200ms;
 }

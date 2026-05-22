@@ -5,6 +5,8 @@ import { AuthModule } from './modules/auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { OtpModule } from './modules/otp/otp.module';
 import { env } from './config/env';
+import { UserModule } from './modules/user/user.module';
+import { UserController } from './modules/user/user.controller';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { env } from './config/env';
     PrismaModule,
     AuthModule,
     OtpModule,
+    UserModule,
   ],
+  controllers: [UserController],
 })
 export class AppModule {}

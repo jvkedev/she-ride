@@ -1,0 +1,47 @@
+"use client";
+
+import CaptainActivityPanel from "@/components/captain/dashboard/captain-activity-panel";
+import CaptainCurrentRide from "@/components/captain/dashboard/captain-current-ride";
+import CaptainEarningsCard from "@/components/captain/dashboard/captain-earnings-card";
+import CaptainMapPanel from "@/components/captain/dashboard/captain-map-panel";
+import CaptainStatsCards from "@/components/captain/dashboard/captain-stats-cards";
+import RequestList from "@/components/captain/requests/request-list";
+import EmergencySosCard from "@/components/captain/safety/emergency-sos-card";
+import { incomingRequests } from "@/lib/captain/captain-mock-data";
+import { captainHeading, captainPanelScroll } from "@/lib/captain/captain-styles";
+
+export default function CaptainDashboardLayout() {
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden lg:grid lg:grid-cols-[minmax(0,400px)_1fr]">
+      <div
+        className={`${captainPanelScroll} min-h-0 flex-1 space-y-4 overflow-y-auto border-neutral-200 p-4 lg:flex-none lg:border-r lg:p-5`}
+      >
+        <CaptainStatsCards />
+        <CaptainEarningsCard />
+        <section>
+          <h2 className={`${captainHeading} mb-3`}>Incoming requests</h2>
+          <RequestList requests={incomingRequests} showTimer compact />
+        </section>
+        <CaptainCurrentRide />
+        <EmergencySosCard compact />
+        <CaptainActivityPanel />
+      </div>
+
+      <div className="relative hidden min-h-0 p-4 lg:block lg:p-5">
+        <CaptainMapPanel
+          className="h-full min-h-0"
+          overlay={
+            <div className="pointer-events-auto ml-auto w-fit rounded-lg border border-neutral-200 bg-white/95 px-3 py-2 text-xs font-medium text-neutral-700 shadow-sm backdrop-blur-sm">
+              Live location · Delhi NCR
+            </div>
+          }
+        />
+      </div>
+
+      <div className="shrink-0 border-t border-neutral-200 p-4 lg:hidden">
+        <h2 className={`${captainHeading} mb-3`}>Live map</h2>
+        <CaptainMapPanel className="h-56 min-h-56" />
+      </div>
+    </div>
+  );
+}

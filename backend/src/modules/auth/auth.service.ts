@@ -7,14 +7,14 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
+import { JwtService } from '@nestjs/jwt';
 
-import { AccountStatus, Gender, UserRole } from '@prisma/client';
+import { AccountStatus, OtpType, UserRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OtpService } from '../otp/otp.service';
 import { redis } from '../../config/redis';
 
 import { RegisterDto, VerifyRegisterOtpDto } from './dto/register.dto';
-
 import type { SendLoginOtpDto, VerifyLoginOtpDto } from './dto/login.dto';
 
 type PendingRegisterData = {
@@ -22,8 +22,6 @@ type PendingRegisterData = {
   email: string;
   phoneNumber: string;
   password: string;
-  gender: Gender;
-  otp: string;
 };
 
 @Injectable()
@@ -31,8 +29,24 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly otpService: OtpService,
+    private readonly jwtService: JwtService,
   ) {}
 
+  private generateToken(user: {
+    id: string;
+    email: string;
+    role: string;
+    phoneNumber: string;
+  }) {
+    return this.jwtService.sign({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      phoneNumber: user.phoneNumber,
+    });
+  }
+
+  // ================== Register Otp =================
   async sendRegisterOtp(dto: RegisterDto) {
     const existingUser = await this.prisma.user.findFirst({
       where: {
@@ -47,62 +61,57 @@ export class AuthService {
     const hashedPassword = await argon2.hash(dto.password);
     const otp = this.otpService.generateOtp();
 
-    const pendingData: PendingRegisterData = {
+    const pending: PendingRegisterData = {
       fullName: dto.fullName,
       email: dto.email,
       phoneNumber: dto.phoneNumber,
       password: hashedPassword,
-      gender: dto.gender,
-      otp,
     };
 
     await redis.setex(
       `pending-register:${dto.phoneNumber}`,
       600,
-      JSON.stringify(pendingData),
+      JSON.stringify(pending),
     );
 
-    await this.otpService.sendRegistrationOtp(
-      'pending-user',
+    await this.otpService.sendOtp(
+      OtpType.PHONE_VERIFICATION,
       dto.phoneNumber,
       otp,
     );
 
     return {
-      message: 'OTP sent successfully. Please verify to complete registration.',
+      message: 'OTP sent successfully',
     };
   }
 
+  // ================== Verify Register =================
   async verifyRegisterOtp(dto: VerifyRegisterOtpDto) {
-    const pendingDataString = await redis.get(
-      `pending-register:${dto.phoneNumber}`,
-    );
+    const pendingRaw = await redis.get(`pending-register:${dto.phoneNumber}`);
 
-    if (!pendingDataString) {
-      throw new BadRequestException(
-        'Registration OTP expired. Please try again.',
-      );
+    if (!pendingRaw) {
+      throw new BadRequestException('OTP expired');
     }
 
-    const pendingData = JSON.parse(pendingDataString) as PendingRegisterData;
+    const pending = JSON.parse(pendingRaw) as PendingRegisterData;
 
-    if (pendingData.otp !== dto.otp) {
+    const isValid = await this.otpService.verifyOtp(
+      OtpType.PHONE_VERIFICATION,
+      dto.phoneNumber,
+      dto.otp,
+    );
+
+    if (!isValid) {
       throw new UnauthorizedException('Invalid OTP');
     }
 
     const user = await this.prisma.user.create({
       data: {
-        fullName: pendingData.fullName,
-        email: pendingData.email,
-        phoneNumber: pendingData.phoneNumber,
-        password: pendingData.password,
-        gender: pendingData.gender,
+        ...pending,
         role: UserRole.RIDER,
         accountStatus: AccountStatus.ACTIVE,
         isPhoneVerified: true,
-        riderProfile: {
-          create: {},
-        },
+        rider: { create: {} },
       },
       select: {
         id: true,
@@ -110,7 +119,6 @@ export class AuthService {
         email: true,
         phoneNumber: true,
         role: true,
-        gender: true,
         accountStatus: true,
         isPhoneVerified: true,
         createdAt: true,
@@ -122,9 +130,11 @@ export class AuthService {
     return {
       message: 'Rider registered successfully',
       user,
+      token: this.generateToken(user),
     };
   }
 
+  // ================== Login Otp =================
   async sendLoginOtp(dto: SendLoginOtpDto) {
     const user = await this.prisma.user.findUnique({
       where: {
@@ -132,21 +142,20 @@ export class AuthService {
       },
     });
 
-    if (!user) {
-      throw new NotFoundException('No account found with this phone number');
-    }
+    if (!user) throw new NotFoundException('User not found');
 
     if (user.accountStatus === AccountStatus.BLOCKED) {
       throw new ForbiddenException('Your account is blocked');
     }
 
-    await this.otpService.sendLoginOtp(user.id, user.phoneNumber);
+    await this.otpService.sendOtp(OtpType.LOGIN, user.id, user.phoneNumber);
 
     return {
-      message: 'Login OTP sent successfully',
+      message: 'Login OTP sent',
     };
   }
 
+  // ================== Verify Login =================
   async verifyLoginOtp(dto: VerifyLoginOtpDto) {
     const user = await this.prisma.user.findUnique({
       where: {
@@ -154,28 +163,22 @@ export class AuthService {
       },
     });
 
-    if (!user) {
-      throw new NotFoundException('No account found with this phone number');
-    }
+    if (!user) throw new NotFoundException('User not found');
 
-    const isOtpValid = await this.otpService.verifyOtp(user.id, dto.otp);
+    const isValid = await this.otpService.verifyOtp(
+      OtpType.LOGIN,
+      user.id,
+      dto.otp,
+    );
 
-    if (!isOtpValid) {
+    if (!isValid) {
       throw new UnauthorizedException('Invalid or expired OTP');
     }
 
     return {
       message: 'Login successful',
-      user: {
-        id: user.id,
-        fullName: user.fullName,
-        email: user.email,
-        phoneNumber: user.phoneNumber,
-        role: user.role,
-        gender: user.gender,
-        accountStatus: user.accountStatus,
-        isPhoneVerified: user.isPhoneVerified,
-      },
+      user,
+      token: this.generateToken(user),
     };
   }
 }

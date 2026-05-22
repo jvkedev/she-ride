@@ -1,5 +1,7 @@
 import 'dotenv/config';
 
+import type { StringValue } from 'ms';
+
 function required(key: string): string {
   const value = process.env[key];
 
@@ -20,7 +22,7 @@ export const env = {
   DATABASE_URL: required('DATABASE_URL'),
 
   JWT_SECRET: required('JWT_SECRET'),
-  JWT_EXPIRES_IN: optional('JWT_EXPIRES_IN', '7d'),
+  JWT_EXPIRES_IN: optional('JWT_EXPIRES_IN', '7d') as StringValue,
 
   REDIS_URL: required('REDIS_URL'),
 

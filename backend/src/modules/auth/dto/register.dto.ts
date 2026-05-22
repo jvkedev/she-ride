@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { Gender } from '@prisma/client';
 
 export const registerSchema = z.object({
   fullName: z.string().min(2, 'Full name must be at least 2 characters'),
@@ -12,8 +11,6 @@ export const registerSchema = z.object({
     .max(15, 'Phone number is too long'),
 
   password: z.string().min(8, 'Password must be at least  8 characters'),
-
-  gender: z.enum(Gender),
 });
 
 export type RegisterDto = z.infer<typeof registerSchema>;
