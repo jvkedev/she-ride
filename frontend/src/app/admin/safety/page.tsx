@@ -6,7 +6,7 @@ export default function AdminSafetyPage() {
   return (
     <DashboardPageLayout
       title="SOS & safety center"
-      description="Emergency alerts, incident monitoring, and quick response."
+     
       wide
     >
       <SafetyQuickActions />

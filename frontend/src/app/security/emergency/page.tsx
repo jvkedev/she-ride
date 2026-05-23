@@ -3,11 +3,7 @@ import DashboardPageLayout from "@/components/shared/dashboard/page-layout";
 
 export default function SecurityEmergencyPage() {
   return (
-    <DashboardPageLayout
-      title="Emergency response center"
-      description="Internal comms, escalation, and priority management."
-      wide
-    >
+    <DashboardPageLayout title="Emergency response center" wide>
       <EmergencyResponsePanel />
     </DashboardPageLayout>
   );

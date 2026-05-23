@@ -3,10 +3,7 @@ import CaptainRideHistoryList from "@/components/captain/history/captain-ride-hi
 
 export default function CaptainRideHistoryPage() {
   return (
-    <CaptainPageLayout
-      title="Ride history"
-      description="View completed and cancelled trips."
-    >
+    <CaptainPageLayout title="Ride history">
       <CaptainRideHistoryList />
     </CaptainPageLayout>
   );

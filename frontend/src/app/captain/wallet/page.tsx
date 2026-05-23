@@ -6,7 +6,7 @@ export default function CaptainWalletPage() {
   return (
     <CaptainPageLayout
       title="Wallet"
-      description="Manage balance, withdrawals, and transactions."
+     
     >
       <WalletBalanceCard />
       <TransactionList />

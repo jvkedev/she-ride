@@ -96,15 +96,6 @@ export default function CaptainHeader({
           </div>
         </div>
 
-        <div className="hidden rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-2 md:block">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">
-            Today&apos;s earnings
-          </p>
-          <p className="text-lg font-semibold text-neutral-900">
-            ₹{todayEarningsSummary.total.toLocaleString("en-IN")}
-          </p>
-        </div>
-
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           <div className="flex items-center gap-2 sm:hidden">
             <CaptainOnlineToggle

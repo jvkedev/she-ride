@@ -6,7 +6,7 @@ export default function SecurityFraudPage() {
   return (
     <DashboardPageLayout
       title="Fraud detection"
-      description="Suspicious logins, GPS spoofing, payment fraud, and device tracking."
+     
       wide
     >
       <FraudRiskCards />

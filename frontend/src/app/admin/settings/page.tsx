@@ -5,11 +5,7 @@ import DashboardPageLayout from "@/components/shared/dashboard/page-layout";
 
 export default function AdminSettingsPage() {
   return (
-    <DashboardPageLayout
-      title="Settings"
-      description="Platform, fare, vehicle categories, and roles."
-      wide
-    >
+    <DashboardPageLayout title="Settings" wide>
       <div className="grid gap-4 lg:grid-cols-2">
         <PlatformSettingsForm />
         <RolesPanel />

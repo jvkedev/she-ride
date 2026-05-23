@@ -3,10 +3,8 @@ import RiderSettingsPanel from "@/components/rider/settings/rider-settings-panel
 
 export default function RiderSettingsPage() {
   return (
-    <RiderPageLayout
-      title="Settings"
-      description="Notifications, privacy, and account options."
-    >
+    <RiderPageLayout title="Settings">
       <RiderSettingsPanel />
-    </RiderPageLayout>  );
+    </RiderPageLayout>
+  );
 }

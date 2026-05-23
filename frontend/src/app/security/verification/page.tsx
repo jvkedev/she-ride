@@ -5,7 +5,7 @@ export default function SecurityVerificationPage() {
   return (
     <DashboardPageLayout
       title="Driver verification security"
-      description="KYC review, document verification, and approve/reject workflows."
+    
       wide
     >
       <VerificationDashboard />

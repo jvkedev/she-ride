@@ -14,7 +14,7 @@ export default function CaptainSafetyPage() {
   return (
     <CaptainPageLayout
       title="Safety"
-      description="SOS, guidelines, and incident reporting."
+    
     >
       <EmergencySosCard />
       <CaptainCard>

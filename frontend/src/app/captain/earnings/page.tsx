@@ -8,7 +8,6 @@ export default function CaptainEarningsPage() {
   return (
     <CaptainPageLayout
       title="Earnings"
-      description="Track daily income, incentives, and payouts."
       wide
     >
       <EarningsSummary />

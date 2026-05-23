@@ -74,15 +74,6 @@ export default function SecurityHeader() {
           </Link>
         </div>
 
-        <div className="hidden rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-2 md:block">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">
-            Active SOS
-          </p>
-          <p className="text-lg font-semibold text-neutral-900">
-            {securityOverviewStats.activeSos}
-          </p>
-        </div>
-
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           <button
             type="button"

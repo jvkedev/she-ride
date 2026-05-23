@@ -5,7 +5,7 @@ export default function CaptainVehiclePage() {
   return (
     <CaptainPageLayout
       title="Vehicle"
-      description="Your registered vehicle for She Ride trips."
+      
     >
       <VehicleDetailsCard />
     </CaptainPageLayout>

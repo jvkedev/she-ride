@@ -5,7 +5,7 @@ export default function SecurityBehaviorPage() {
   return (
     <DashboardPageLayout
       title="Driver behavior monitoring"
-      description="Safety scores, complaints, and risk profiles."
+      
       wide
     >
       <DriverBehaviorTable />

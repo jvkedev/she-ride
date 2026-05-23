@@ -11,7 +11,7 @@ export default function SecurityOverviewPage() {
   return (
     <DashboardPageLayout
       title="Security overview"
-      description="Real-time trust & safety monitoring for She Ride."
+     
       wide
     >
       <SecurityOverviewStats />

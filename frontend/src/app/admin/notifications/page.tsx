@@ -6,7 +6,7 @@ export default function AdminNotificationsPage() {
   return (
     <DashboardPageLayout
       title="Notifications & promotions"
-      description="Push campaigns and promo code management."
+      
       wide
     >
       <div className="grid gap-4 lg:grid-cols-2">

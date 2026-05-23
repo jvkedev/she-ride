@@ -6,7 +6,7 @@ export default function AdminPaymentsPage() {
   return (
     <DashboardPageLayout
       title="Payments & earnings"
-      description="Revenue analytics, payouts, and refund management."
+      
       wide
     >
       <RevenueSummary />

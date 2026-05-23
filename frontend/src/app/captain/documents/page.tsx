@@ -5,7 +5,7 @@ export default function CaptainDocumentsPage() {
   return (
     <CaptainPageLayout
       title="Documents"
-      description="Upload and verify required captain documents."
+     
     >
       <VerificationStatus />
     </CaptainPageLayout>

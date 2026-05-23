@@ -5,7 +5,7 @@ export default function SecurityAuditPage() {
   return (
     <DashboardPageLayout
       title="Audit logs"
-      description="Admin and security action tracking with export."
+   
       wide
     >
       <AuditLogsTable />

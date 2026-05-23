@@ -4,11 +4,7 @@ import { incomingRequests } from "@/lib/captain/captain-mock-data";
 
 export default function CaptainRequestsPage() {
   return (
-    <CaptainPageLayout
-      title="Ride requests"
-      description="Accept or decline incoming bookings near you."
-      wide
-    >
+    <CaptainPageLayout title="Ride requests" wide>
       <RequestList requests={incomingRequests} showTimer />
     </CaptainPageLayout>
   );

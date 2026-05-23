@@ -7,7 +7,7 @@ export default function CaptainSupportPage() {
   return (
     <CaptainPageLayout
       title="Support"
-      description="Get help with trips, payments, and your account."
+    
     >
       <HelpCategories />
       <CaptainCard>

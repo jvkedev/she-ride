@@ -5,7 +5,7 @@ export default function AdminSupportPage() {
   return (
     <DashboardPageLayout
       title="Support tickets"
-      description="Manage rider and captain support requests."
+     
       wide
     >
       <TicketsTable />

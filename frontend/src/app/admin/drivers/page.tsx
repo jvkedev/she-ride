@@ -3,11 +3,7 @@ import DashboardPageLayout from "@/components/shared/dashboard/page-layout";
 
 export default function AdminDriversPage() {
   return (
-    <DashboardPageLayout
-      title="Driver management"
-      description="Approve captains, verify KYC, and manage fleet status."
-      wide
-    >
+    <DashboardPageLayout title="Driver management" wide>
       <DriversTable />
     </DashboardPageLayout>
   );

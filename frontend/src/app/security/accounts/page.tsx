@@ -5,7 +5,7 @@ export default function SecurityAccountsPage() {
   return (
     <DashboardPageLayout
       title="Account security"
-      description="Failed logins, sessions, VPN detection, and account controls."
+  
       wide
     >
       <AccountsSecurityTable />

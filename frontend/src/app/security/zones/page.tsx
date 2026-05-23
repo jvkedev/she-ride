@@ -5,7 +5,7 @@ export default function SecurityZonesPage() {
   return (
     <DashboardPageLayout
       title="Risk zones & geo-fencing"
-      description="Heatmaps, restricted zones, and night-time risk indicators."
+      
       wide
     >
       <RiskZonesPanel />
