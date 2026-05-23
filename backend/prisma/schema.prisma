@@ -99,6 +99,8 @@ model User {
 
   otps Otp[]
 
+  refreshToken String?
+
   rider   Rider?
   captain Captain?
 

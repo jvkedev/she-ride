@@ -21,8 +21,12 @@ export const env = {
 
   DATABASE_URL: required('DATABASE_URL'),
 
-  JWT_SECRET: required('JWT_SECRET'),
-  JWT_EXPIRES_IN: optional('JWT_EXPIRES_IN', '7d') as StringValue,
+  JWT_ACCESS_SECRET: required('JWT_ACCESS_SECRET'),
+  JWT_REFRESH_SECRET: required('JWT_REFRESH_SECRET'),
+
+  JWT_ACCESS_EXPIRES: optional('JWT_ACCESS_EXPIRES', '15m') as StringValue,
+
+  JWT_REFRESH_EXPIRES: optional('JWT_REFRESH_EXPIRES', '7d') as StringValue,
 
   REDIS_URL: required('REDIS_URL'),
 

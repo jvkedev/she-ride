@@ -18,6 +18,7 @@ export type RegisterDto = z.infer<typeof registerSchema>;
 export const verifyRegisterOtpSchema = z.object({
   phoneNumber: z
     .string()
+    .regex(/^[6-9]\d{9}$/, 'Invalid phone number')
     .min(10, 'Phone number must be at least 10 digits')
     .max(15, 'Phone number is too long'),
 

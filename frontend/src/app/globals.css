@@ -124,9 +124,10 @@ select {
   scrollbar-color: var(--border) transparent;
 }
 
-/* Rider & captain panel scroll */
+/* Rider, captain & admin panel scroll */
 .rider-panel-scroll,
-.captain-panel-scroll {
+.captain-panel-scroll,
+.dashboard-panel-scroll {
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: #b8b8b8 #f0f0f0;
@@ -177,5 +178,10 @@ body:has(.captain-menu-sheet[data-open]) [data-slot="sheet-overlay"] {
 
 .rider-menu-sheet[data-side="left"][data-open],
 .rider-menu-sheet[data-side="left"][data-closed] {
+  animation-duration: 200ms;
+}
+
+.security-menu-sheet[data-side="left"][data-open],
+.security-menu-sheet[data-side="left"][data-closed] {
   animation-duration: 200ms;
 }

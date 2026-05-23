@@ -10,6 +10,11 @@ import {
 } from './dto/register.dto';
 
 import {
+  refreshTokenSchema,
+  type RefreshTokenDto,
+} from './dto/refresh-token.dto';
+
+import {
   sendLoginOtpSchema,
   verifyLoginOtpSchema,
   type SendLoginOtpDto,
@@ -42,5 +47,11 @@ export class AuthController {
   @UsePipes(new ZodValidationPipe(verifyLoginOtpSchema))
   verifyLoginOtp(@Body() dto: VerifyLoginOtpDto) {
     return this.authService.verifyLoginOtp(dto);
+  }
+
+  @Post('refresh')
+  @UsePipes(new ZodValidationPipe(refreshTokenSchema))
+  refresh(@Body() dto: RefreshTokenDto) {
+    return this.authService.refreshToken(dto);
   }
 }

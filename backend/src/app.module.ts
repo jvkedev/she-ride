@@ -7,6 +7,9 @@ import { OtpModule } from './modules/otp/otp.module';
 import { env } from './config/env';
 import { UserModule } from './modules/user/user.module';
 import { UserController } from './modules/user/user.controller';
+import { AdminModule } from './modules/admin/admin.module';
+import { RiderModule } from './modules/rider/rider.module';
+import { CaptainModule } from './modules/captain/captain.module';
 
 @Module({
   imports: [
@@ -19,6 +22,9 @@ import { UserController } from './modules/user/user.controller';
     AuthModule,
     OtpModule,
     UserModule,
+    AdminModule,
+    RiderModule,
+    CaptainModule,
   ],
   controllers: [UserController],
 })
