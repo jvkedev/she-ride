@@ -9,7 +9,9 @@ export default function SecuritySurveillancePage() {
           Route deviation, suspicious stops, and movement tracking.
         </p>
       </div>
-      <SurveillancePanel />
+      <div className="min-h-0 flex-1">
+        <SurveillancePanel />
+      </div>
     </div>
   );
 }

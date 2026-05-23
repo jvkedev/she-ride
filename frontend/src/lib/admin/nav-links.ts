@@ -32,8 +32,8 @@ export const adminNavLinks: AdminNavLink[] = [
   { label: "Settings", href: "/admin/settings", icon: Settings },
 ];
 
-export const adminNavGroups = [
-  { title: "Operations", links: adminNavLinks.slice(0, 5) },
-  { title: "Safety & Finance", links: adminNavLinks.slice(5, 7) },
-  { title: "Platform", links: adminNavLinks.slice(7) },
-];
+export const adminMobileNavLinks = adminNavLinks.filter((link) =>
+  ["/admin", "/admin/drivers", "/admin/rides", "/admin/tracking"].includes(
+    link.href,
+  ),
+);

@@ -14,16 +14,16 @@ import {
 
 export default function ActiveRideLayout() {
   return (
-    <div className="grid h-full min-h-0 overflow-hidden lg:grid-cols-[minmax(0,380px)_1fr]">
+    <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)] overflow-hidden lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
       <div
-        className={`${captainPanelScroll} min-h-0 space-y-4 overflow-y-auto p-4 lg:border-r lg:p-5`}
+        className={`${captainPanelScroll} min-h-0 overflow-y-auto p-4 lg:border-r lg:p-5`}
       >
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-semibold text-neutral-900">Active ride</h1>
           <CaptainStatusBadge status="busy" />
         </div>
 
-        <CaptainCard>
+        <CaptainCard className="mt-4">
           <p className={captainMutedText}>Passenger</p>
           <p className="text-lg font-semibold text-neutral-900">
             {activeRide.passengerName}
@@ -34,18 +34,22 @@ export default function ActiveRideLayout() {
           <p className={captainMutedText}>Share OTP at pickup</p>
         </CaptainCard>
 
-        <CaptainCard>
+        <CaptainCard className="mt-4">
           <h2 className={captainHeading}>Trip progress</h2>
           <div className="mt-4">
             <TripProgress currentStep="trip" />
           </div>
         </CaptainCard>
 
-        <RideControls />
+        <div className="mt-4">
+          <RideControls />
+        </div>
       </div>
 
-      <div className="relative hidden min-h-0 p-4 lg:block lg:p-5">
-        <RideMapPanel />
+      <div className="relative hidden min-h-0 lg:block">
+        <div className="absolute inset-0 p-4 lg:p-5">
+          <RideMapPanel />
+        </div>
       </div>
 
       <div className="shrink-0 border-t border-neutral-200 p-4 lg:hidden">

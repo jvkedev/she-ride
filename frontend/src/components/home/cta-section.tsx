@@ -3,7 +3,7 @@ import { Button } from "../ui/button";
 
 const CtaSection = () => {
   return (
-    <section className="mx-auto max-w-7xl px-6 py-16 lg:px-12">
+    <section id="support" className="mx-auto max-w-7xl scroll-mt-20 px-6 py-16 lg:px-12">
       <div className="relative overflow-hidden rounded-4xl bg-primary px-8 py-16 text-primary-foreground shadow-xl sm:px-12">
         <div className="absolute -left-20 top-0 h-72 rounded-full bg-muted/10 blur-3xl" />
         <div className="absolute -bottom-24 right-0 h-88 rounded-full bg-muted/10 blur-3xl" />

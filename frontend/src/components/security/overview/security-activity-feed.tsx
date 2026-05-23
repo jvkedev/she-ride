@@ -7,11 +7,11 @@ import { useSecurityWebSocket } from "@/hooks/security/use-security-websocket";
 import { cn } from "@/lib/utils";
 
 const typeColors = {
-  sos: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400",
-  fraud: "bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-400",
-  incident: "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-400",
-  audit: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300",
-  ride: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400",
+  sos: "bg-red-100 text-red-700",
+  fraud: "bg-orange-100 text-orange-800",
+  incident: "bg-purple-100 text-purple-800",
+  audit: "bg-neutral-100 text-neutral-700",
+  ride: "bg-blue-100 text-blue-800",
 };
 
 export default function SecurityActivityFeed() {
@@ -24,7 +24,7 @@ export default function SecurityActivityFeed() {
         {events.map((item) => (
           <li
             key={item.id}
-            className="flex items-start gap-3 rounded-lg border border-neutral-100 px-3 py-3 dark:border-neutral-800"
+            className="flex items-start gap-3 rounded-lg border border-neutral-100 px-3 py-3"
           >
             <span
               className={cn(
@@ -35,9 +35,7 @@ export default function SecurityActivityFeed() {
               {item.type}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-sm text-neutral-800 dark:text-neutral-200">
-                {item.message}
-              </p>
+              <p className="text-sm text-neutral-800">{item.message}</p>
               <div className="mt-1 flex items-center gap-2">
                 <p className="text-xs text-neutral-400">{item.time}</p>
                 {item.priority ? <PriorityBadge priority={item.priority} /> : null}

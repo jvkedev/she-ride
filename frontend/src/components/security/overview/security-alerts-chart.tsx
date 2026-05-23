@@ -19,7 +19,7 @@ export default function SecurityAlertsChart() {
     <ChartCard title="Security alerts trend" description="SOS, fraud, and total alerts">
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={securityChartData}>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-neutral-200 dark:stroke-neutral-700" />
+          <CartesianGrid strokeDasharray="3 3" className="stroke-neutral-200" />
           <XAxis dataKey="day" tick={{ fontSize: 12 }} />
           <YAxis tick={{ fontSize: 12 }} />
           <Tooltip />

@@ -25,7 +25,7 @@ const safetyItems: {
 
 const SafetyFeaturesSection = () => {
   return (
-    <section className="mx-auto max-w-7xl px-6 py-16 lg:px-12">
+    <section id="safety" className="mx-auto max-w-7xl scroll-mt-20 px-6 py-16 lg:px-12">
       <div className="rounded-3xl bg-primary px-8 py-8 text-primary-foreground shadow-xl lg:px-12">
         <div className="grid items-center gap-8 lg:grid-cols-[180px_1fr]">
           {/* Main Icon */}

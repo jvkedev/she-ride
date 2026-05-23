@@ -69,15 +69,6 @@ export default function RegisterForm() {
       />
       <p className="text-sm text-red-500">{errors.password?.message}</p>
 
-      <select
-        {...register("gender")}
-        className="w-full rounded-md border px-4 py-3"
-      >
-        <option value="FEMALE">Female</option>
-        <option value="MALE">Male</option>
-        <option value="OTHER">Other</option>
-      </select>
-
       <button
         disabled={isSubmitting}
         className="w-full rounded-md bg-black px-4 py-3 text-white"

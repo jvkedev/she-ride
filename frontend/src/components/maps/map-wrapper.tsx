@@ -13,7 +13,7 @@ const LiveMap = dynamic(() => import("./live-map"), {
 
 export default function MapWrapper() {
   return (
-    <div className="h-full min-h-[320px] w-full">
+    <div className="h-full min-h-0 w-full">
       <LiveMap />
     </div>
   );

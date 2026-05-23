@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { riderSidebarLinks } from "@/components/rider/layout/rider-nav-links";
+import DashboardLogoutButton from "@/components/shared/dashboard/logout-button";
 import { riderProfile } from "@/lib/rider/rider-mock-data";
 import { cn } from "@/lib/utils";
 
@@ -65,6 +66,7 @@ export default function RiderSidebar() {
             </p>
           </div>
         </Link>
+        <DashboardLogoutButton className="mt-3" />
       </div>
     </aside>
   );

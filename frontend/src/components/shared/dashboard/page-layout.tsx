@@ -1,7 +1,4 @@
-import {
-  dashboardPageShell,
-  dashboardPageTitle,
-} from "@/lib/dashboard/styles";
+import { dashboardPageTitle } from "@/lib/dashboard/styles";
 import { cn } from "@/lib/utils";
 
 type DashboardPageLayoutProps = {
@@ -24,8 +21,8 @@ export default function DashboardPageLayout({
   return (
     <div
       className={cn(
-        dashboardPageShell,
-        wide ? "max-w-7xl" : "max-w-6xl",
+        "mx-auto w-full px-4 py-6 sm:px-6 lg:py-8",
+        wide ? "max-w-6xl" : "max-w-3xl",
         className,
       )}
     >

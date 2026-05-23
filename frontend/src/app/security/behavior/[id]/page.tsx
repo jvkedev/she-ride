@@ -42,8 +42,8 @@ export default async function DriverBehaviorProfilePage({ params }: PageProps) {
         </SurfaceCard>
       </div>
       <SurfaceCard>
-        <h2 className="text-sm font-semibold dark:text-white">Recommendations</h2>
-        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-neutral-600 dark:text-neutral-400">
+        <h2 className="text-sm font-semibold text-neutral-900">Recommendations</h2>
+        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-neutral-600">
           {driver.safetyScore < 75 ? (
             <>
               <li>Schedule safety re-training</li>

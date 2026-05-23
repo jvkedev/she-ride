@@ -11,7 +11,7 @@ export default function VerificationDashboard() {
       {driverVerifications.map((driver) => (
         <SurfaceCard key={driver.id}>
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-neutral-900 dark:text-white">
+            <h3 className="font-semibold text-neutral-900">
               {driver.name}
             </h3>
             <StatusBadge status={driver.overall} />

@@ -23,40 +23,40 @@ export default function IncidentInvestigationPanel({
     <div className="grid gap-4 lg:grid-cols-2">
       <SurfaceCard>
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-lg font-semibold dark:text-white">{incident.title}</h2>
+          <h2 className="text-lg font-semibold text-neutral-900">{incident.title}</h2>
           <PriorityBadge priority={incident.priority} />
           <StatusBadge status={incident.status} />
         </div>
         <dl className="mt-4 grid grid-cols-2 gap-4 text-sm">
           <div>
             <dt className="text-neutral-500">Category</dt>
-            <dd className="font-medium dark:text-neutral-200">{incident.category}</dd>
+            <dd className="font-medium text-neutral-900">{incident.category}</dd>
           </div>
           <div>
             <dt className="text-neutral-500">Reporter</dt>
-            <dd className="font-medium dark:text-neutral-200">{incident.reporter}</dd>
+            <dd className="font-medium text-neutral-900">{incident.reporter}</dd>
           </div>
           <div>
             <dt className="text-neutral-500">Assigned to</dt>
-            <dd className="font-medium dark:text-neutral-200">{incident.assignedTo}</dd>
+            <dd className="font-medium text-neutral-900">{incident.assignedTo}</dd>
           </div>
         </dl>
-        <SurfaceCard padding="sm" className="mt-4 bg-neutral-50 dark:bg-neutral-800">
+        <SurfaceCard padding="sm" className="mt-4 bg-neutral-50">
           <p className="text-xs font-medium text-neutral-500">Evidence preview</p>
-          <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="mt-2 text-sm text-neutral-600">
             Trip audio, GPS trace, and in-app messages attached (mock).
           </p>
         </SurfaceCard>
       </SurfaceCard>
       <div className="space-y-4">
         <SurfaceCard>
-          <h3 className="text-sm font-semibold dark:text-white">Resolution timeline</h3>
+          <h3 className="text-sm font-semibold text-neutral-900">Resolution timeline</h3>
           <div className="mt-4">
             <IncidentTimeline events={timeline} />
           </div>
         </SurfaceCard>
         <SurfaceCard>
-          <h3 className="text-sm font-semibold dark:text-white">Internal notes</h3>
+          <h3 className="text-sm font-semibold text-neutral-900">Internal notes</h3>
           <Textarea
             className="mt-3 min-h-[120px] rounded-lg"
             placeholder="Investigation notes (internal only)..."

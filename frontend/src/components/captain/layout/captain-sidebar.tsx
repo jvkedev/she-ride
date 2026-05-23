@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 import { captainNavLinks } from "@/components/captain/layout/captain-nav-links";
 import CaptainStatusBadge from "@/components/captain/shared/captain-status-badge";
+import DashboardLogoutButton from "@/components/shared/dashboard/logout-button";
 import { captainProfile } from "@/lib/captain/captain-mock-data";
 import { cn } from "@/lib/utils";
 
@@ -12,11 +13,13 @@ type CaptainSidebarProps = {
   isOnline?: boolean;
 };
 
-export default function CaptainSidebar({ isOnline = true }: CaptainSidebarProps) {
+export default function CaptainSidebar({
+  isOnline = true,
+}: CaptainSidebarProps) {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden h-full w-60 shrink-0 flex-col border-r border-neutral-200 bg-white lg:flex">
+    <aside className="hidden w-60 shrink-0 flex-col border-r border-neutral-200 bg-white lg:flex lg:h-full lg:min-h-0">
       <div className="shrink-0 border-b border-neutral-100 px-4 py-5">
         <Link
           href="/captain"
@@ -66,9 +69,8 @@ export default function CaptainSidebar({ isOnline = true }: CaptainSidebarProps)
             </p>
           </div>
         </div>
-        <div className="mt-3">
-          <CaptainStatusBadge status={isOnline ? "online" : "offline"} />
-        </div>
+        <div className="mt-3"></div>
+        <DashboardLogoutButton className="mt-3" />
       </div>
     </aside>
   );

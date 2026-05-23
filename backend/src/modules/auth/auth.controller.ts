@@ -1,6 +1,9 @@
-import { Body, Controller, Post, UsePipes } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards, UsePipes } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { CurrentUser } from './decorators/current-user.decorator';
+import type { JwtUser } from '../../common/types/jwt-user.type';
 
 import {
   registerSchema,
@@ -20,6 +23,11 @@ import {
   type SendLoginOtpDto,
   type VerifyLoginOtpDto,
 } from './dto/login.dto';
+
+import {
+  selectRoleSchema,
+  type SelectRoleDto,
+} from './dto/select-role.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -53,5 +61,20 @@ export class AuthController {
   @UsePipes(new ZodValidationPipe(refreshTokenSchema))
   refresh(@Body() dto: RefreshTokenDto) {
     return this.authService.refreshToken(dto);
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  me(@CurrentUser() user: JwtUser) {
+    return this.authService.getMe(user.id);
+  }
+
+  @Post('select-role')
+  @UseGuards(JwtAuthGuard)
+  selectRole(
+    @CurrentUser() user: JwtUser,
+    @Body(new ZodValidationPipe(selectRoleSchema)) dto: SelectRoleDto,
+  ) {
+    return this.authService.selectRole(user.id, dto);
   }
 }

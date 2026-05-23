@@ -67,7 +67,7 @@ const features: {
 
 const WhyChooseSection = () => {
   return (
-    <section className="mx-auto max-w-7xl px-6 py-12 lg:px-12">
+    <section id="features" className="mx-auto max-w-7xl scroll-mt-20 px-6 py-12 lg:px-12">
       {/* Heading */}
       <div className="mb-14">
         <h2 className="text-3xl font-extrabold text-primary sm:text-3xl">

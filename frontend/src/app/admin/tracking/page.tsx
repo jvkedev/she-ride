@@ -9,7 +9,9 @@ export default function AdminTrackingPage() {
           Real-time fleet map with active rides and captain locations.
         </p>
       </div>
-      <LiveTrackingPanel />
+      <div className="min-h-0 flex-1">
+        <LiveTrackingPanel />
+      </div>
     </div>
   );
 }

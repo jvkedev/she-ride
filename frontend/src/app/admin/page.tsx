@@ -6,11 +6,7 @@ import DashboardPageLayout from "@/components/shared/dashboard/page-layout";
 
 export default function AdminDashboardPage() {
   return (
-    <DashboardPageLayout
-      title="Dashboard"
-      description="Platform overview, analytics, and recent activity."
-      wide
-    >
+    <DashboardPageLayout title="Dashboard" wide>
       <OverviewStats />
       <div className="grid gap-4 lg:grid-cols-2">
         <RevenueChart />

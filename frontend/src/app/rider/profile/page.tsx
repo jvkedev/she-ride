@@ -4,10 +4,7 @@ import RiderProfileDetails from "@/components/rider/profile/rider-profile-detail
 
 export default function RiderProfilePage() {
   return (
-    <RiderPageLayout
-      title="Profile"
-      description="Your rider account details."
-    >
+    <RiderPageLayout title="Profile">
       <RiderProfileCard />
       <RiderProfileDetails />
     </RiderPageLayout>

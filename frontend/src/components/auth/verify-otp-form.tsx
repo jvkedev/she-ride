@@ -7,6 +7,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 
 import { apiRequest } from "@/lib/api";
 import {
+  getDashboardPathForRole,
+  setAuthSession,
+  type AuthUser,
+} from "@/lib/auth/session";
+import {
   verifyRegisterOtpSchema,
   type VerifyRegisterOtpInput,
 } from "@/schemas/auth.schema";
@@ -49,18 +54,24 @@ export default function VerifyOtpForm() {
 
       const res = await apiRequest(endpoint, data);
 
-      if (res.accessToken || res.token) {
-        localStorage.setItem("accessToken", res.accessToken || res.token);
-      }
+      const token = res.accessToken || res.token;
+      const user = res.user as AuthUser | undefined;
 
-      if (res.user) {
-        localStorage.setItem("user", JSON.stringify(res.user));
+      if (token && user) {
+        setAuthSession(token, user, {
+          grantRoleSelection: Boolean(res.requiresRoleSelection),
+        });
       }
 
       localStorage.removeItem("authFlow");
       localStorage.removeItem("authPhoneNumber");
 
-      router.push("/");
+      if (res.requiresRoleSelection || user?.role === "PENDING") {
+        router.push("/select-role");
+        return;
+      }
+
+      router.push(getDashboardPathForRole(user?.role ?? "RIDER"));
     } catch (error) {
       alert(error instanceof Error ? error.message : "OTP verification failed");
     }

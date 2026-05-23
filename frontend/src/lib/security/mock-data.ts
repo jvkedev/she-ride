@@ -11,6 +11,11 @@ import type {
   SecuritySosAlert,
 } from "@/lib/security/types";
 
+export const securityProfile = {
+  name: "Security Ops",
+  role: "Trust & Safety",
+};
+
 export const securityOverviewStats = {
   activeSos: 3,
   fraudAttempts: 12,

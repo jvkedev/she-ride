@@ -8,6 +8,11 @@ import type {
   AdminTransaction,
 } from "@/lib/admin/types";
 
+export const adminProfile = {
+  name: "Admin User",
+  role: "Platform Admin",
+};
+
 export const adminOverviewStats = {
   revenue: 2847500,
   revenueChange: "+12.4%",

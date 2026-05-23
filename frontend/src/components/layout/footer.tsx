@@ -94,7 +94,7 @@ const Footer = () => {
               {footerLinks.company.map((link) => (
                 <li key={link.label}>
                   <Link
-                    href="#"
+                    href={link.href}
                     className="text-muted-foreground transition hover:text-primary"
                   >
                     {link.label}
@@ -112,7 +112,7 @@ const Footer = () => {
               {footerLinks.services.map((link) => (
                 <li key={link.label}>
                   <Link
-                    href="#"
+                    href={link.href}
                     className="text-muted-foreground transition hover:text-primary"
                   >
                     {link.label}

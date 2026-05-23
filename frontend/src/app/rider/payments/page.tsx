@@ -3,10 +3,7 @@ import PaymentsPanel from "@/components/rider/payments/payments-panel";
 
 export default function PaymentsPage() {
   return (
-    <RiderPageLayout
-      title="Payments"
-      description="Wallet, payment methods, and transactions"
-    >
+    <RiderPageLayout title="Payments">
       <PaymentsPanel />
     </RiderPageLayout>
   );

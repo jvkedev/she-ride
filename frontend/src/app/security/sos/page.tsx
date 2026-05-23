@@ -9,7 +9,9 @@ export default function SecuritySosPage() {
           Real-time emergency alerts, escalation, and live ride tracking.
         </p>
       </div>
-      <SosMonitoringPanel />
+      <div className="min-h-0 flex-1">
+        <SosMonitoringPanel />
+      </div>
     </div>
   );
 }

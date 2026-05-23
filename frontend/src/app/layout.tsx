@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+import PublicShell from "@/components/layout/public-shell";
 import ToastProvider from "@/components/providers/toast-provider";
-import Navbar from "@/components/layout/navbar";
-import Footer from "@/components/layout/footer";
 
 export const metadata: Metadata = {
   title: "Fem Safe Ride",
@@ -19,9 +18,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <ToastProvider />
-        {/* <Navbar /> */}
-        <main>{children}</main>
-        {/* <Footer /> */}
+        <PublicShell>{children}</PublicShell>
       </body>
     </html>
   );

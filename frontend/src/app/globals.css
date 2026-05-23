@@ -66,6 +66,12 @@ body {
   min-height: 100%;
 }
 
+html:has(.dashboard-viewport-lock),
+html:has(.dashboard-viewport-lock) body {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   /* background: var(--background); */
   color: var(--foreground);
@@ -183,5 +189,14 @@ body:has(.captain-menu-sheet[data-open]) [data-slot="sheet-overlay"] {
 
 .security-menu-sheet[data-side="left"][data-open],
 .security-menu-sheet[data-side="left"][data-closed] {
+  animation-duration: 200ms;
+}
+
+body:has(.admin-menu-sheet[data-open]) [data-slot="sheet-overlay"] {
+  animation-duration: 200ms;
+}
+
+.admin-menu-sheet[data-side="left"][data-open],
+.admin-menu-sheet[data-side="left"][data-closed] {
   animation-duration: 200ms;
 }

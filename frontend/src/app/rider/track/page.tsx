@@ -1,13 +1,5 @@
-import RiderPageLayout from "@/components/rider/layout/rider-page-layout";
-import TrackRidePanel from "@/components/rider/track/track-ride-panel";
+import TrackPageClient from "@/components/rider/track/track-page-client";
 
 export default function TrackRidePage() {
-  return (
-    <RiderPageLayout
-      title="Track Ride"
-      description="Live status of your active trip"
-    >
-      <TrackRidePanel />
-    </RiderPageLayout>
-  );
+  return <TrackPageClient />;
 }

@@ -11,22 +11,17 @@ export default function RiskZonesPanel() {
     <div className="grid gap-4 lg:grid-cols-2">
       <SurfaceCard>
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold dark:text-white">Geo-fenced zones</h2>
+          <h2 className="text-sm font-semibold text-neutral-900">Geo-fenced zones</h2>
           <Button size="sm" className="rounded-lg">
             Add zone
           </Button>
         </div>
         <ul className="mt-4 space-y-3">
           {riskZones.map((zone) => (
-            <li
-              key={zone.id}
-              className="rounded-lg border border-neutral-100 p-3 dark:border-neutral-800"
-            >
+            <li key={zone.id} className="rounded-lg border border-neutral-100 p-3">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="font-medium text-neutral-900 dark:text-white">
-                    {zone.name}
-                  </p>
+                  <p className="font-medium text-neutral-900">{zone.name}</p>
                   <p className="text-xs text-neutral-500">{zone.activeHours}</p>
                 </div>
                 <PriorityBadge priority={zone.level} />
@@ -42,7 +37,7 @@ export default function RiskZonesPanel() {
         <AdminLiveMap
           className="h-full min-h-[360px]"
           overlay={
-            <span className="rounded-lg border bg-white/95 px-3 py-2 text-xs shadow-sm backdrop-blur-sm dark:bg-neutral-900/95 dark:text-white">
+            <span className="rounded-lg border border-neutral-200 bg-white/95 px-3 py-2 text-xs text-neutral-900 shadow-sm backdrop-blur-sm">
               Risk heatmap overlay · OpenStreetMap
             </span>
           }

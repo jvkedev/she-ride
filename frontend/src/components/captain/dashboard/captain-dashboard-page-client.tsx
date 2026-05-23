@@ -13,5 +13,9 @@ const CaptainDashboardLayout = dynamic(
 );
 
 export default function CaptainDashboardPageClient() {
-  return <CaptainDashboardLayout />;
+  return (
+    <div className="h-full min-h-0 flex-1">
+      <CaptainDashboardLayout />
+    </div>
+  );
 }

@@ -33,10 +33,10 @@ export const securityNavLinks: SecurityNavLink[] = [
   { label: "Emergency Response", href: "/security/emergency", icon: Radio },
 ];
 
-export const securityNavGroups = [
-  { title: "Monitoring", links: securityNavLinks.slice(0, 4) },
-  { title: "Trust & Safety", links: securityNavLinks.slice(4, 8) },
-  { title: "Operations", links: securityNavLinks.slice(8) },
-];
+export const securityMobileNavLinks = securityNavLinks.filter((link) =>
+  ["/security", "/security/sos", "/security/surveillance", "/security/emergency"].includes(
+    link.href,
+  ),
+);
 
 export const MAP_LAYOUT_ROUTES = ["/security/surveillance", "/security/sos"];

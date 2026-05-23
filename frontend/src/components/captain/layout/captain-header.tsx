@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Bell, Menu, User } from "lucide-react";
 
 import CaptainOnlineToggle from "@/components/captain/dashboard/captain-online-toggle";
+import DashboardLogoutButton from "@/components/shared/dashboard/logout-button";
 import { captainNavLinks } from "@/components/captain/layout/captain-nav-links";
 import CaptainStatusBadge from "@/components/captain/shared/captain-status-badge";
 import { Button } from "@/components/ui/button";
@@ -56,7 +57,7 @@ export default function CaptainHeader({
                   She Ride Captain
                 </SheetTitle>
               </SheetHeader>
-              <nav className="captain-panel-scroll flex-1 space-y-0.5 px-2 py-4">
+              <nav className="captain-panel-scroll min-h-0 flex-1 space-y-0.5 px-2 py-4">
                 {captainNavLinks.map((link) => {
                   const Icon = link.icon;
                   return (
@@ -72,6 +73,9 @@ export default function CaptainHeader({
                   );
                 })}
               </nav>
+              <div className="shrink-0 border-t border-neutral-100 p-4">
+                <DashboardLogoutButton onLoggedOut={() => setMenuOpen(false)} />
+              </div>
             </SheetContent>
           </Sheet>
 

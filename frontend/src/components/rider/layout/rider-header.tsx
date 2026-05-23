@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Bell, Clock, Menu, User } from "lucide-react";
 
 import { riderSidebarLinks } from "@/components/rider/layout/rider-nav-links";
+import DashboardLogoutButton from "@/components/shared/dashboard/logout-button";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -43,7 +44,7 @@ export default function RiderHeader() {
                   She Ride
                 </SheetTitle>
               </SheetHeader>
-              <nav className="rider-panel-scroll flex-1 space-y-0.5 px-2 py-4">
+              <nav className="rider-panel-scroll min-h-0 flex-1 space-y-0.5 px-2 py-4">
                 {riderSidebarLinks.map((link) => {
                   const Icon = link.icon;
                   return (
@@ -60,6 +61,9 @@ export default function RiderHeader() {
                   );
                 })}
               </nav>
+              <div className="shrink-0 border-t border-neutral-100 p-4">
+                <DashboardLogoutButton onLoggedOut={() => setMenuOpen(false)} />
+              </div>
             </SheetContent>
           </Sheet>
 
@@ -71,13 +75,6 @@ export default function RiderHeader() {
           </Link>
         </div>
 
-        <div className="hidden rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-2 md:block">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">
-            Wallet balance
-          </p>
-          <p className="text-lg font-semibold text-neutral-900">₹1,250</p>
-        </div>
-
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           <button
             type="button"
@@ -86,14 +83,6 @@ export default function RiderHeader() {
           >
             <Bell className="size-5" />
           </button>
-
-          <Button
-            variant="outline"
-            className="hidden h-9 gap-2 rounded-lg border-neutral-300 bg-white px-4 text-sm font-medium text-neutral-900 shadow-none hover:bg-neutral-50 sm:flex"
-          >
-            <Clock className="size-4" />
-            Activity
-          </Button>
 
           <Link
             href="/rider/profile"

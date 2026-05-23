@@ -8,6 +8,7 @@ datasource db {
 }
 
 enum UserRole {
+  PENDING
   RIDER
   CAPTAIN
   ADMIN
@@ -90,7 +91,7 @@ model User {
   phoneNumber String @unique
   password    String
 
-  role   UserRole @default(RIDER)
+  role   UserRole @default(PENDING)
 
   onboardingStatus  OnboardingStatus  @default(PENDING)
 

@@ -5,10 +5,7 @@ import RiderCard from "@/components/rider/shared/rider-card";
 
 export default function RiderSupportPage() {
   return (
-    <RiderPageLayout
-      title="Support"
-      description="Get help with bookings, payments, and your account."
-    >
+    <RiderPageLayout title="Support">
       <RiderHelpCategories />
       <RiderCard>
         <p className="text-sm text-neutral-600">

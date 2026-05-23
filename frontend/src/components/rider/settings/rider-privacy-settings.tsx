@@ -1,33 +1,64 @@
-import RiderCard from "@/components/rider/shared/rider-card";
+"use client";
 
-const privacyOptions = [
-  { label: "Share live location during trips", enabled: true },
-  { label: "Show profile to captains", enabled: true },
-  { label: "Personalized recommendations", enabled: false },
+import { useState } from "react";
+
+import RiderCard from "@/components/rider/shared/rider-card";
+import RiderSettingToggle from "@/components/rider/shared/rider-setting-toggle";
+
+type PrivacyOption = {
+  id: string;
+  label: string;
+  description?: string;
+  enabled: boolean;
+};
+
+const initialPrivacy: PrivacyOption[] = [
+  {
+    id: "location",
+    label: "Share live location during trips",
+    description: "Helps captains navigate and improves safety",
+    enabled: true,
+  },
+  {
+    id: "profile",
+    label: "Show profile to captains",
+    description: "Name and rating visible on active rides",
+    enabled: true,
+  },
+  {
+    id: "reco",
+    label: "Personalized recommendations",
+    description: "Trip and offer suggestions based on usage",
+    enabled: false,
+  },
 ];
 
 export default function RiderPrivacySettings() {
+  const [privacy, setPrivacy] = useState(initialPrivacy);
+
+  function toggle(id: string) {
+    setPrivacy((rows) =>
+      rows.map((row) =>
+        row.id === id ? { ...row, enabled: !row.enabled } : row,
+      ),
+    );
+  }
+
   return (
     <RiderCard>
-      <h2 className="text-sm font-semibold text-neutral-900">
-        Privacy & data
-      </h2>
-      <ul className="mt-4 space-y-3">
-        {privacyOptions.map((option) => (
-          <li
-            key={option.label}
-            className="flex items-center justify-between gap-4 text-sm"
-          >
-            <span className="text-neutral-700">{option.label}</span>
-            <span
-              className={
-                option.enabled
-                  ? "text-xs font-medium text-primary"
-                  : "text-xs text-neutral-400"
-              }
-            >
-              {option.enabled ? "On" : "Off"}
-            </span>
+      <h2 className="text-sm font-semibold text-neutral-900">Privacy & data</h2>
+      <p className="mt-1 text-sm text-neutral-500">
+        Manage what you share during and after rides.
+      </p>
+      <ul className="mt-4 divide-y divide-neutral-100">
+        {privacy.map((option) => (
+          <li key={option.id}>
+            <RiderSettingToggle
+              label={option.label}
+              description={option.description}
+              enabled={option.enabled}
+              onToggle={() => toggle(option.id)}
+            />
           </li>
         ))}
       </ul>

@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
+import PendingRoleGuard from "@/components/auth/pending-role-guard";
 import CaptainHeader from "@/components/captain/layout/captain-header";
 import CaptainMobileNav from "@/components/captain/layout/captain-mobile-nav";
 import CaptainRoutePrefetch from "@/components/captain/layout/captain-route-prefetch";
@@ -23,21 +24,25 @@ export default function CaptainLayoutShell({
   const isMapLayout = MAP_LAYOUT_ROUTES.includes(pathname);
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-[#f6f6f6]">
-      <CaptainRoutePrefetch />
-      <CaptainSidebar isOnline={isOnline} />
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <CaptainHeader isOnline={isOnline} onOnlineChange={setIsOnline} />
-        <main
-          className={cn(
-            "min-h-0 flex-1 pb-16 lg:pb-0",
-            isMapLayout ? "overflow-hidden" : "overflow-y-auto",
-          )}
-        >
-          {children}
-        </main>
+    <PendingRoleGuard>
+      <div className="dashboard-viewport-lock flex h-dvh max-h-dvh min-h-0 overflow-hidden bg-[#f6f6f6]">
+        <CaptainRoutePrefetch />
+        <CaptainSidebar isOnline={isOnline} />
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <CaptainHeader isOnline={isOnline} onOnlineChange={setIsOnline} />
+          <main
+            className={cn(
+              "min-h-0 flex-1 pb-16 lg:pb-0",
+              isMapLayout
+                ? "flex flex-col overflow-hidden"
+                : "overflow-y-auto",
+            )}
+          >
+            {children}
+          </main>
+        </div>
+        <CaptainMobileNav />
       </div>
-      <CaptainMobileNav />
-    </div>
+    </PendingRoleGuard>
   );
 }

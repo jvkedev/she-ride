@@ -9,6 +9,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
 import { env } from '../../config/env';
 
 import { RolesGuard } from './guards/roles.guard';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -31,7 +32,9 @@ import { JwtStrategy } from './strategies/jwt.strategy';
   providers: [
     AuthService,
     JwtStrategy,
+    JwtAuthGuard,
     { provide: APP_GUARD, useClass: RolesGuard },
   ],
+  exports: [AuthService, JwtAuthGuard],
 })
 export class AuthModule {}

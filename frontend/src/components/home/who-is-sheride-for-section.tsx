@@ -31,7 +31,7 @@ const audiences: {
 
 const WhoIsSheRideForSection = () => {
   return (
-    <section className="mx-auto max-w-7xl px-6 py-12 lg:px-12">
+    <section id="drivers" className="mx-auto max-w-7xl scroll-mt-20 px-6 py-12 lg:px-12">
       <div className="mb-14">
         <h2 className="text-3xl font-extrabold text-primary sm:text-3xl">
           WHO IS SHE RIDE FOR?

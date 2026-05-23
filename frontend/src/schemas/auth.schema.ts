@@ -43,3 +43,11 @@ export const verifyLoginOtpSchema = z.object({
 });
 
 export type VerifyLoginOtpInput = z.infer<typeof verifyLoginOtpSchema>;
+
+export const selectRoleSchema = z.object({
+  role: z.enum(["RIDER", "CAPTAIN"], {
+    message: "Please choose Rider or Captain",
+  }),
+});
+
+export type SelectRoleInput = z.infer<typeof selectRoleSchema>;

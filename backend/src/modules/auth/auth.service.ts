@@ -11,7 +11,12 @@ import { JwtService } from '@nestjs/jwt';
 
 import { env } from '../../config/env';
 
-import { AccountStatus, OtpType, UserRole } from '@prisma/client';
+import {
+  AccountStatus,
+  OnboardingStatus,
+  OtpType,
+  UserRole,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OtpService } from '../otp/otp.service';
 import { redis } from '../../config/redis';
@@ -19,6 +24,7 @@ import { redis } from '../../config/redis';
 import { RegisterDto, VerifyRegisterOtpDto } from './dto/register.dto';
 import type { SendLoginOtpDto, VerifyLoginOtpDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import type { SelectRoleDto } from './dto/select-role.dto';
 
 type PendingRegisterData = {
   fullName: string;
@@ -202,10 +208,10 @@ export class AuthService {
     const user = await this.prisma.user.create({
       data: {
         ...pending,
-        role: UserRole.RIDER,
+        role: UserRole.PENDING,
         accountStatus: AccountStatus.ACTIVE,
         isPhoneVerified: true,
-        rider: { create: {} },
+        onboardingStatus: OnboardingStatus.PENDING,
       },
       select: {
         id: true,
@@ -215,11 +221,13 @@ export class AuthService {
         role: true,
         accountStatus: true,
         isPhoneVerified: true,
+        onboardingStatus: true,
         createdAt: true,
       },
     });
 
     await redis.del(`pending-register:${dto.phoneNumber}`);
+    await redis.setex(`role-selection:${user.id}`, 86_400, '1');
 
     const tokens = this.generateTokens(user);
 
@@ -231,8 +239,111 @@ export class AuthService {
     });
 
     return {
-      message: 'Rider registered successfully',
+      message: 'Account created. Select how you want to use She Ride.',
       user,
+      requiresRoleSelection: true,
+      ...tokens,
+    };
+  }
+
+  async getMe(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phoneNumber: true,
+        role: true,
+        accountStatus: true,
+        isPhoneVerified: true,
+        onboardingStatus: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const roleSelectionSession = await redis.get(`role-selection:${userId}`);
+
+    return {
+      user,
+      requiresRoleSelection: user.role === UserRole.PENDING,
+      canAccessRoleSelection:
+        user.role === UserRole.PENDING && roleSelectionSession === '1',
+    };
+  }
+
+  async selectRole(userId: string, dto: SelectRoleDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.role !== UserRole.PENDING) {
+      throw new ConflictException('Role has already been selected');
+    }
+
+    const roleSelectionSession = await redis.get(`role-selection:${userId}`);
+
+    if (roleSelectionSession !== '1') {
+      throw new ForbiddenException(
+        'Role selection is not available. Sign in again to continue account setup.',
+      );
+    }
+
+    const selectedRole =
+      dto.role === 'RIDER' ? UserRole.RIDER : UserRole.CAPTAIN;
+
+    const updatedUser = await this.prisma.$transaction(async (tx) => {
+      if (selectedRole === UserRole.RIDER) {
+        await tx.rider.create({ data: { userId } });
+      } else {
+        await tx.captain.create({ data: { userId } });
+      }
+
+      return tx.user.update({
+        where: { id: userId },
+        data: {
+          role: selectedRole,
+          onboardingStatus:
+            selectedRole === UserRole.RIDER
+              ? OnboardingStatus.RIDER_COMPLETED
+              : OnboardingStatus.CAPTAIN_COMPLETED,
+        },
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          phoneNumber: true,
+          role: true,
+          accountStatus: true,
+          isPhoneVerified: true,
+          onboardingStatus: true,
+          createdAt: true,
+        },
+      });
+    });
+
+    await redis.del(`role-selection:${userId}`);
+
+    const tokens = this.generateTokens(updatedUser);
+    const hashedRefreshToken = await argon2.hash(tokens.refreshToken);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { refreshToken: hashedRefreshToken },
+    });
+
+    return {
+      message: 'Role selected successfully',
+      user: updatedUser,
+      redirectTo: selectedRole === UserRole.RIDER ? '/rider' : '/captain',
       ...tokens,
     };
   }
@@ -287,9 +398,14 @@ export class AuthService {
       data: { refreshToken: hashedRefreshToken },
     });
 
+    if (user.role === UserRole.PENDING) {
+      await redis.setex(`role-selection:${user.id}`, 86_400, '1');
+    }
+
     return {
       message: 'Login successful',
       user,
+      requiresRoleSelection: user.role === UserRole.PENDING,
       ...tokens,
     };
   }
