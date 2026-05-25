@@ -1,60 +1,80 @@
 "use client";
+import LocationInput from "./location-input";
+import { MapPin, Square } from "lucide-react";
+import { useState } from "react";
+import { LocationSuggestion } from "@/services/location/location.service";
+import { estimateRide, RideEstimate } from "@/services/rides/rides.service";
 
-import LocationInputGroup from "@/components/rider/shared/location-input-group";
-import PassengerSelector from "@/components/rider/shared/passenger-selector";
-import PromoBanner from "@/components/rider/shared/promo-banner";
-import ScheduleSelector from "@/components/rider/shared/schedule-selector";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-
-type TripFormProps = {
-  showSearchButton?: boolean;
-  onSearch?: () => void;
-  /** Minimal layout for rentals — no promo, schedule, or input icons */
-  minimal?: boolean;
-};
+interface TripFormProps {
+  showSearchButton: boolean;
+  onSearch: (
+    estimates: RideEstimate[],
+    pickup: LocationSuggestion,
+    drop: LocationSuggestion,
+  ) => void;
+}
 
 export default function TripForm({
-  showSearchButton = false,
+  showSearchButton,
   onSearch,
-  minimal = false,
 }: TripFormProps) {
+  const [pickup, setPickup] = useState<LocationSuggestion | null>(null);
+  const [drop, setDrop] = useState<LocationSuggestion | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSearch() {
+    if (!pickup || !drop) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const estimates = await estimateRide({
+        pickupAddress: pickup.displayName,
+        dropAddress: drop.displayName,
+        pickupLatitude: pickup.lat,
+        pickupLongitude: pickup.lng,
+        dropLatitude: drop.lat,
+        dropLongitude: drop.lng,
+      });
+
+      onSearch(estimates, pickup, drop);
+    } catch (err: any) {
+      setError(
+        err?.response?.data?.message ?? "Failed to fetch rides. Try again.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <div className="flex h-full flex-col p-6">
-      <h1 className="text-[1.75rem] font-semibold tracking-tight text-neutral-900">
-        Find a trip
-      </h1>
+    <div className="p-6 space-y-3">
+      <h1 className="text-2xl font-semibold">Find a trip</h1>
 
-      {!minimal && (
-        <div className="mt-5">
-          <PromoBanner />
-        </div>
-      )}
+      <LocationInput
+        placeholder="Pickup location"
+        icon={<MapPin className="h-4 w-4 text-pink-500 shrink-0" />}
+        onSelect={setPickup}
+      />
 
-      <div className={cn(minimal ? "mt-6" : "mt-4")}>
-        <LocationInputGroup
-          showLocationIcons={!minimal}
-          showAddStop={!minimal}
-        />
-      </div>
+      <LocationInput
+        placeholder="Drop location"
+        icon={<Square className="h-4 w-4 text-neutral-800 shrink-0" />}
+        onSelect={setDrop}
+      />
 
-      {!minimal && (
-        <div className="mt-3 space-y-2">
-          <ScheduleSelector />
-          <PassengerSelector />
-        </div>
-      )}
+      {error && <p className="text-xs text-red-500">{error}</p>}
 
       {showSearchButton && (
-        <Button
-          onClick={onSearch}
-          className={cn(
-            "mt-auto h-12 w-full rounded-lg text-base font-semibold",
-            "bg-primary text-primary-foreground hover:bg-primary/90",
-          )}
+        <button
+          onClick={handleSearch}
+          disabled={!pickup || !drop || loading}
+          className="w-full rounded-xl bg-pink-500 py-3 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-pink-600 transition-colors"
         >
-          Search
-        </Button>
+          {loading ? "Searching..." : "Search"}
+        </button>
       )}
     </div>
   );

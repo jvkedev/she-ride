@@ -1,12 +1,12 @@
 "use client";
-
 import dynamic from "next/dynamic";
 import { useState } from "react";
-
 import PaymentRequestBar from "@/components/rider/booking/payment-request-bar";
 import RideOptionsList from "@/components/rider/booking/ride-options-list";
 import TripForm from "@/components/rider/booking/trip-form";
 import { cn } from "@/lib/utils";
+import { RideEstimate } from "@/services/rides/rides.service";
+import { LocationSuggestion } from "@/services/location/location.service";
 
 const MapPanelSection = dynamic(
   () => import("@/components/rider/booking/map-panel-section"),
@@ -23,6 +23,49 @@ type BookingStep = "search" | "rides";
 export default function BookingLayout() {
   const [step, setStep] = useState<BookingStep>("search");
   const [selectedRide, setSelectedRide] = useState("She Go");
+  const [estimates, setEstimates] = useState<RideEstimate[]>([]);
+  const [pickup, setPickup] = useState<LocationSuggestion | null>(null);
+  const [drop, setDrop] = useState<LocationSuggestion | null>(null);
+
+  function handleSearch(
+    results: RideEstimate[],
+    p: LocationSuggestion,
+    d: LocationSuggestion,
+  ) {
+    setEstimates(results);
+    setPickup(p);
+    setDrop(d);
+    setStep("rides");
+  }
+
+  // Find the selected estimate to pass down to PaymentRequestBar
+  const selectedEstimate = estimates.find((e) => {
+    const map: Record<string, string> = {
+      CAR: "She Go",
+      AUTO: "She Auto",
+      BIKE: "She Bike Saver",
+      SUV: "She SUV",
+    };
+    return map[e.vehicleType] === selectedRide;
+  });
+
+  const rideOptions = (
+    <RideOptionsList
+      selected={selectedRide}
+      onSelect={setSelectedRide}
+      estimates={estimates}
+    />
+  );
+
+  const paymentBar = (className?: string) => (
+    <PaymentRequestBar
+      selectedRide={selectedRide}
+      estimate={selectedEstimate}
+      pickup={pickup}
+      drop={drop}
+      className={className}
+    />
+  );
 
   return (
     <div
@@ -36,19 +79,16 @@ export default function BookingLayout() {
       <aside className="rider-panel-scroll min-h-0 overflow-y-auto border-neutral-200 bg-white lg:border-r">
         <TripForm
           showSearchButton={step === "search"}
-          onSearch={() => setStep("rides")}
+          onSearch={handleSearch}
         />
       </aside>
 
       {step === "rides" && (
         <section className="relative hidden min-h-0 flex-col border-neutral-200 bg-white lg:flex lg:border-r">
           <div className="rider-panel-scroll min-h-0 flex-1 overflow-y-auto px-6 pt-8 pb-28">
-            <RideOptionsList
-              selected={selectedRide}
-              onSelect={setSelectedRide}
-            />
+            {rideOptions}
           </div>
-          <PaymentRequestBar selectedRide={selectedRide} />
+          {paymentBar()}
         </section>
       )}
 
@@ -61,15 +101,11 @@ export default function BookingLayout() {
       {step === "rides" && (
         <div className="flex shrink-0 flex-col border-t border-neutral-200 bg-white lg:hidden">
           <div className="rider-panel-scroll max-h-[45dvh] overflow-y-auto px-4 pt-6 pb-28">
-            <RideOptionsList
-              selected={selectedRide}
-              onSelect={setSelectedRide}
-            />
+            {rideOptions}
           </div>
-          <PaymentRequestBar
-            selectedRide={selectedRide}
-            className="fixed inset-x-0 bottom-16 z-40 border-t bg-white px-4 py-3 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]"
-          />
+          {paymentBar(
+            "fixed inset-x-0 bottom-16 z-40 border-t bg-white px-4 py-3 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]",
+          )}
         </div>
       )}
 

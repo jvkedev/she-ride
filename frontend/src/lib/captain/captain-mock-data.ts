@@ -20,10 +20,10 @@ export type RideRequest = {
   passengerRating: number;
   pickup: string;
   dropoff: string;
-  fare: number;
+  fare: number | null;
   distance: string;
   eta: string;
-  paymentMethod: "cash" | "wallet" | "upi";
+  paymentMethod: string;
   vehicleType: string;
 };
 
@@ -110,9 +110,27 @@ export const weeklyEarnings = [
 ];
 
 export const recentTransactions = [
-  { id: "tx-1", label: "Trip fare", amount: 156, type: "credit" as const, date: "Today, 2:40 PM" },
-  { id: "tx-2", label: "Weekly payout", amount: 12500, type: "credit" as const, date: "Yesterday" },
-  { id: "tx-3", label: "Platform fee", amount: 45, type: "debit" as const, date: "Yesterday" },
+  {
+    id: "tx-1",
+    label: "Trip fare",
+    amount: 156,
+    type: "credit" as const,
+    date: "Today, 2:40 PM",
+  },
+  {
+    id: "tx-2",
+    label: "Weekly payout",
+    amount: 12500,
+    type: "credit" as const,
+    date: "Yesterday",
+  },
+  {
+    id: "tx-3",
+    label: "Platform fee",
+    amount: 45,
+    type: "debit" as const,
+    date: "Yesterday",
+  },
 ];
 
 export const rideHistoryItems = [

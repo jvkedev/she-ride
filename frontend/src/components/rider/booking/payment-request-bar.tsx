@@ -1,19 +1,66 @@
 "use client";
-
 import { ChevronDown, CreditCard } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
+import { RideEstimate, requestRide } from "@/services/rides/rides.service";
+import { LocationSuggestion } from "@/services/location/location.service";
+
+const VEHICLE_TYPE_MAP: Record<string, "CAR" | "AUTO" | "BIKE" | "SUV"> = {
+  "She Go": "CAR",
+  "She Auto": "AUTO",
+  "She Bike Saver": "BIKE",
+  "She SUV": "SUV",
+};
 
 type PaymentRequestBarProps = {
   selectedRide?: string;
+  estimate?: RideEstimate;
+  pickup?: LocationSuggestion | null;
+  drop?: LocationSuggestion | null;
   className?: string;
 };
 
 export default function PaymentRequestBar({
   selectedRide = "She Go",
+  estimate,
+  pickup,
+  drop,
   className,
 }: PaymentRequestBarProps) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleRequest() {
+    if (!pickup || !drop || !estimate) return;
+
+    const vehicleType = VEHICLE_TYPE_MAP[selectedRide];
+    if (!vehicleType) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const ride = await requestRide({
+        pickupAddress: pickup.displayName,
+        dropAddress: drop.displayName,
+        pickupLatitude: pickup.lat,
+        pickupLongitude: pickup.lng,
+        dropLatitude: drop.lat,
+        dropLongitude: drop.lng,
+        vehicleType,
+        paymentMethod: "CASH",
+      });
+
+      console.log("Ride requested:", ride);
+      // TODO: navigate to ride tracking screen with ride.rideId
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? "Failed to request ride.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div
       className={cn(
@@ -21,6 +68,7 @@ export default function PaymentRequestBar({
         className,
       )}
     >
+      {error && <p className="mb-2 text-xs text-red-500">{error}</p>}
       <div className="grid grid-cols-[1fr_1.4fr] gap-3">
         <button
           type="button"
@@ -34,9 +82,11 @@ export default function PaymentRequestBar({
         </button>
 
         <Button
-          className="h-12 rounded-xl bg-primary text-base font-semibold text-primary-foreground hover:bg-primary/90"
+          onClick={handleRequest}
+          disabled={loading || !pickup || !drop || !estimate}
+          className="h-12 rounded-xl bg-primary text-base font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
-          Request {selectedRide}
+          {loading ? "Requesting..." : `Request ${selectedRide}`}
         </Button>
       </div>
     </div>

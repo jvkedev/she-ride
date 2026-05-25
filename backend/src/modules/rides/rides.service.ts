@@ -4,6 +4,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import axios from 'axios';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OtpService } from '../otp/otp.service';
 import {
@@ -13,6 +14,7 @@ import {
   OtpType,
 } from '@prisma/client';
 import { CreateRideDto } from './dto/create-ride.dto';
+import { EstimateRideDto } from './dto/estimate-ride.dto';
 import { haversineDistance } from './helpers/haversine.helper';
 import { calculateFare } from './helpers/fare.helper';
 
@@ -22,6 +24,46 @@ export class RidesService {
     private prisma: PrismaService,
     private otpService: OtpService,
   ) {}
+
+  // ========================== Estimate Ride ==========================
+  async estimateRide(dto: EstimateRideDto, userId: string) {
+    const rider = await this.prisma.rider.findUnique({ where: { userId } });
+    if (!rider) throw new BadRequestException('Rider profile not found');
+
+    const distanceKm = haversineDistance(
+      dto.pickupLatitude,
+      dto.pickupLongitude,
+      dto.dropLatitude,
+      dto.dropLongitude,
+    );
+
+    const vehicleTypes: VehicleType[] = [
+      VehicleType.BIKE,
+      VehicleType.AUTO,
+      VehicleType.CAR,
+      VehicleType.SUV,
+    ];
+
+    const estimates = await Promise.all(
+      vehicleTypes.map(async (vehicleType) => {
+        const estimatedFare = calculateFare(distanceKm, vehicleType);
+        const nearbyCaptains = await this.findNearbyCaptains(
+          dto.pickupLatitude,
+          dto.pickupLongitude,
+          vehicleType,
+          5,
+        );
+        return {
+          vehicleType,
+          estimatedFare,
+          distanceInKm: parseFloat(distanceKm.toFixed(2)),
+          nearbyCaptains: nearbyCaptains.length,
+        };
+      }),
+    );
+
+    return estimates;
+  }
 
   // ========================== Request Ride ==========================
   async requestRide(dto: CreateRideDto, userId: string) {
@@ -207,6 +249,43 @@ export class RidesService {
     ORDER BY nearby.distance
     LIMIT 5
   `;
+  }
+
+  // ========================== Get Searching Rides ==========================
+  async getSearchingRides(userId: string) {
+    const captain = await this.prisma.captain.findUnique({
+      where: { userId },
+      include: { vehicle: true }, // ← include vehicle to get vehicleType
+    });
+    if (!captain) throw new BadRequestException('Captain profile not found');
+    if (!captain.vehicle)
+      throw new BadRequestException('Captain has no vehicle registered');
+
+    const rides = await this.prisma.ride.findMany({
+      where: {
+        status: RideStatus.SEARCHING,
+        vehicleType: captain.vehicle.vehicleType, // ← from vehicle relation
+      },
+      include: {
+        rider: {
+          include: { user: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    });
+
+    return rides.map((ride) => ({
+      rideId: ride.id,
+      passengerName: ride.rider.user.fullName,
+      passengerRating: ride.rider.averageRating ?? 5.0, // ← averageRating not rating
+      fare: ride.estimatedFare,
+      distanceInKm: ride.distanceInKm,
+      vehicleType: ride.vehicleType,
+      paymentMethod: ride.paymentMethod,
+      pickup: ride.pickupAddress,
+      dropoff: ride.dropAddress,
+    }));
   }
 
   // ========================== Captain Arrived ==========================
