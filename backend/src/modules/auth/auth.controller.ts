@@ -1,4 +1,11 @@
-import { Body, Controller, Get, Post, UseGuards, UsePipes } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  UseGuards,
+  UsePipes,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -24,14 +31,24 @@ import {
   type VerifyLoginOtpDto,
 } from './dto/login.dto';
 
-import {
-  selectRoleSchema,
-  type SelectRoleDto,
-} from './dto/select-role.dto';
+import { selectRoleSchema, type SelectRoleDto } from './dto/select-role.dto';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Post('test-otp')
+  async testOtp() {
+    const numbers = ['9045499732', '9266540690', '8171340519'];
+
+    for (const phoneNumber of numbers) {
+      await this.authService.sendLoginOtp({
+        phoneNumber,
+      } as SendLoginOtpDto);
+    }
+
+    return { success: true };
+  }
 
   @Post('register/send-otp')
   @UsePipes(new ZodValidationPipe(registerSchema))

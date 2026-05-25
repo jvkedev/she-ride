@@ -1,8 +1,7 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
-
+import { OtpProcessor } from './otp.processor';
 import { OtpService } from './otp.service';
-import { OtpProcessor } from '../../queues/otp/otp.processor';
 
 @Module({
   imports: [

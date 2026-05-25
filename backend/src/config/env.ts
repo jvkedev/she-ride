@@ -30,7 +30,5 @@ export const env = {
 
   REDIS_URL: required('REDIS_URL'),
 
-  TWILIO_ACCOUNT_SID: required('TWILIO_ACCOUNT_SID'),
-  TWILIO_AUTH_TOKEN: required('TWILIO_AUTH_TOKEN'),
-  TWILIO_PHONE_NUMBER: required('TWILIO_PHONE_NUMBER'),
+  FAST2SMS_API_KEY: required('FAST2SMS_API_KEY'),
 };

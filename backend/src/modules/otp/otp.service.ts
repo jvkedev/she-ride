@@ -27,12 +27,13 @@ export class OtpService {
 
     const key = this.getKey(type, phoneNumber);
 
+    // store OTP for 10 minutes
     await redis.setex(key, 600, otp);
 
+    // push job to queue
     await this.otpQueue.add('send-otp', {
       phoneNumber,
       otp,
-      type,
     });
 
     return { success: true };
@@ -40,10 +41,10 @@ export class OtpService {
 
   async verifyOtp(
     type: OtpType,
-    identifier: string,
+    phoneNumber: string,
     otp: string,
   ): Promise<boolean> {
-    const key = this.getKey(type, identifier);
+    const key = this.getKey(type, phoneNumber);
 
     const savedOtp = await redis.get(key);
 

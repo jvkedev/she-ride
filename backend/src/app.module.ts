@@ -10,7 +10,7 @@ import { UserController } from './modules/user/user.controller';
 import { AdminModule } from './modules/admin/admin.module';
 import { RiderModule } from './modules/rider/rider.module';
 import { CaptainModule } from './modules/captain/captain.module';
-
+import { RidesModule } from './modules/rides/rides.module';
 @Module({
   imports: [
     BullModule.forRoot({
@@ -25,6 +25,7 @@ import { CaptainModule } from './modules/captain/captain.module';
     AdminModule,
     RiderModule,
     CaptainModule,
+    RidesModule,
   ],
   controllers: [UserController],
 })
