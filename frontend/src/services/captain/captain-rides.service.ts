@@ -12,6 +12,24 @@ export interface CaptainRideRequest {
   dropoff: string;
 }
 
+export interface CaptainHistoryItem {
+  id: string;
+  pickupAddress: string;
+  dropAddress: string;
+  distanceInKm: number;
+  finalFare: number | null;
+  estimatedFare: number;
+  vehicleType: string;
+  paymentMethod: string;
+  status: "COMPLETED" | "CANCELED";
+  startedAt: string | null;
+  completedAt: string | null;
+  rider?: {
+    user: { fullName: string; phoneNumber: string };
+    averageRating: number;
+  };
+}
+
 export interface AcceptRideResponse {
   rideId: string;
   status: string;
@@ -47,6 +65,21 @@ export async function getSearchingRides(): Promise<CaptainRideRequest[]> {
   return res.json();
 }
 
+export interface CaptainHistoryResponse {
+  data: CaptainHistoryItem[];
+  meta: { total: number; page: number; limit: number; totalPages: number };
+}
+
+export async function getCaptainHistory(
+  page = 1,
+  limit = 10,
+): Promise<CaptainHistoryResponse> {
+  const res = await apiFetch(
+    `/rides/history/captain?page=${page}&limit=${limit}`,
+  );
+  if (!res.ok) throw new Error("Failed to fetch captain history");
+  return res.json();
+}
 export async function acceptRide(rideId: string): Promise<AcceptRideResponse> {
   const res = await apiFetch(`/rides/${rideId}/accept`, { method: "PATCH" });
   if (!res.ok) throw new Error("Failed to accept ride");
