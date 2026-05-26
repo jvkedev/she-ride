@@ -288,6 +288,49 @@ export class RidesService {
     }));
   }
 
+  // ========================== Update Captain Location ==========================
+  async updateLocation(userId: string, lat: number, lng: number) {
+    const captain = await this.prisma.captain.findUnique({ where: { userId } });
+    if (!captain) throw new BadRequestException('Captain profile not found');
+
+    await this.prisma.captain.update({
+      where: { id: captain.id },
+      data: {
+        currentLatitude: lat,
+        currentLongitude: lng,
+      },
+    });
+
+    return { success: true };
+  }
+  // ========================== Get Captain Location ==========================
+  async getCaptainLocation(rideId: string, userId: string) {
+    const rider = await this.prisma.rider.findUnique({ where: { userId } });
+    if (!rider) throw new BadRequestException('Rider profile not found');
+
+    const ride = await this.prisma.ride.findUnique({
+      where: { id: rideId },
+      include: { captain: true },
+    });
+    if (!ride) throw new NotFoundException('Ride not found');
+    if (ride.riderId !== rider.id) throw new UnauthorizedException();
+
+    // No captain yet — return status so frontend can show "searching" state
+    if (!ride.captain) {
+      return {
+        status: ride.status,
+        lat: null,
+        lng: null,
+      };
+    }
+
+    return {
+      status: ride.status,
+      lat: ride.captain.currentLatitude,
+      lng: ride.captain.currentLongitude,
+    };
+  }
+
   // ========================== Captain Arrived ==========================
   async captainArrived(rideId: string, userId: string) {
     const captain = await this.prisma.captain.findUnique({ where: { userId } });

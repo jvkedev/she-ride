@@ -18,7 +18,17 @@ const MapPanelSection = dynamic(
   },
 );
 
-type BookingStep = "search" | "rides";
+const RideLiveMap = dynamic(
+  () => import("@/components/rider/booking/ride-live-map"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-full animate-pulse rounded-2xl bg-neutral-200" />
+    ),
+  },
+);
+
+type BookingStep = "search" | "rides" | "tracking";
 
 export default function BookingLayout() {
   const [step, setStep] = useState<BookingStep>("search");
@@ -26,6 +36,7 @@ export default function BookingLayout() {
   const [estimates, setEstimates] = useState<RideEstimate[]>([]);
   const [pickup, setPickup] = useState<LocationSuggestion | null>(null);
   const [drop, setDrop] = useState<LocationSuggestion | null>(null);
+  const [activeRideId, setActiveRideId] = useState<string | null>(null);
 
   function handleSearch(
     results: RideEstimate[],
@@ -38,7 +49,11 @@ export default function BookingLayout() {
     setStep("rides");
   }
 
-  // Find the selected estimate to pass down to PaymentRequestBar
+  function handleRideRequested(rideId: string) {
+    setActiveRideId(rideId);
+    setStep("tracking");
+  }
+
   const selectedEstimate = estimates.find((e) => {
     const map: Record<string, string> = {
       CAR: "She Go",
@@ -63,8 +78,20 @@ export default function BookingLayout() {
       estimate={selectedEstimate}
       pickup={pickup}
       drop={drop}
+      onRideRequested={handleRideRequested}
       className={className}
     />
+  );
+
+  // Map panel — shows captain live location after ride is requested
+  const mapPanel = (
+    <div className="h-full min-h-0">
+      {activeRideId ? (
+        <RideLiveMap rideId={activeRideId} />
+      ) : (
+        <MapPanelSection />
+      )}
+    </div>
   );
 
   return (
@@ -93,9 +120,7 @@ export default function BookingLayout() {
       )}
 
       <div className="relative hidden min-h-0 p-4 lg:block lg:p-5">
-        <div className="h-full min-h-0">
-          <MapPanelSection />
-        </div>
+        {mapPanel}
       </div>
 
       {step === "rides" && (
@@ -113,6 +138,14 @@ export default function BookingLayout() {
         <div className="shrink-0 border-t border-neutral-200 p-4 lg:hidden">
           <div className="h-56 min-h-56 overflow-hidden rounded-2xl">
             <MapPanelSection />
+          </div>
+        </div>
+      )}
+
+      {step === "tracking" && (
+        <div className="shrink-0 border-t border-neutral-200 p-4 lg:hidden">
+          <div className="h-56 min-h-56 overflow-hidden rounded-2xl">
+            {activeRideId && <RideLiveMap rideId={activeRideId} />}
           </div>
         </div>
       )}

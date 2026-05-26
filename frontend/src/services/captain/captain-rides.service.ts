@@ -56,6 +56,10 @@ export async function acceptRide(rideId: string): Promise<AcceptRideResponse> {
   return data;
 }
 
+export async function updateLocation(lat: number, lng: number): Promise<void> {
+  await api.patch("/rides/location", { lat, lng }, { headers: authHeader() });
+}
+
 // Mark captain as arrived at pickup
 export async function markArrived(rideId: string): Promise<void> {
   await api.patch(`/rides/${rideId}/arrived`, {}, { headers: authHeader() });

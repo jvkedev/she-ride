@@ -12,26 +12,22 @@ export async function searchLocations(
 ): Promise<LocationSuggestion[]> {
   if (!query || query.length < 3) return [];
 
-  const { data } = await axios.get(
-    "https://nominatim.openstreetmap.org/search",
-    {
-      params: {
-        q: query,
-        format: "json",
-        addressdetails: 1,
-        limit: 5,
-        countrycodes: "in",
+  try {
+    const { data } = await axios.get(
+      `${process.env.NEXT_PUBLIC_API_URL}/location/search`,
+      {
+        params: { q: query },
       },
-      headers: {
-        "Accept-Language": "en",
-      },
-    },
-  );
+    );
 
-  return data.map((item: any) => ({
-    placeId: item.place_id,
-    displayName: item.display_name,
-    lat: parseFloat(item.lat),
-    lng: parseFloat(item.lon),
-  }));
+    return data.map((item: any) => ({
+      placeId: item.place_id,
+      displayName: item.display_name,
+      lat: parseFloat(item.lat),
+      lng: parseFloat(item.lon),
+    }));
+  } catch (err) {
+    console.error("Location search failed:", err);
+    return [];
+  }
 }

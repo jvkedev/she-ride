@@ -7,7 +7,7 @@ export default function MapZoomControls() {
   const map = useMap();
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-[1000]">
+    <div className="pointer-events-none absolute inset-0 z-1000">
       <div className="pointer-events-auto absolute right-4 bottom-4 flex flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-md">
         <button
           type="button"

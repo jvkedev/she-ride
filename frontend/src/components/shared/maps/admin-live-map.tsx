@@ -9,7 +9,7 @@ const MapPanelSection = dynamic(
   () => import("@/components/rider/booking/map-panel-section"),
   {
     ssr: false,
-    loading: () => <Skeleton className="h-full min-h-[320px] w-full rounded-2xl" />,
+    loading: () => <Skeleton className="h-full min-h-80 w-full rounded-2xl" />,
   },
 );
 
@@ -22,7 +22,7 @@ export default function AdminLiveMap({ className, overlay }: AdminLiveMapProps) 
   return (
     <div
       className={cn(
-        "relative h-full min-h-[320px] w-full overflow-hidden rounded-2xl",
+        "relative h-full min-h-80 w-full overflow-hidden rounded-2xl",
         className,
       )}
     >

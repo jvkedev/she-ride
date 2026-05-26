@@ -18,6 +18,7 @@ type PaymentRequestBarProps = {
   estimate?: RideEstimate;
   pickup?: LocationSuggestion | null;
   drop?: LocationSuggestion | null;
+  onRideRequested?: (rideId: string) => void;
   className?: string;
 };
 
@@ -26,6 +27,7 @@ export default function PaymentRequestBar({
   estimate,
   pickup,
   drop,
+  onRideRequested,
   className,
 }: PaymentRequestBarProps) {
   const [loading, setLoading] = useState(false);
@@ -52,8 +54,7 @@ export default function PaymentRequestBar({
         paymentMethod: "CASH",
       });
 
-      console.log("Ride requested:", ride);
-      // TODO: navigate to ride tracking screen with ride.rideId
+      onRideRequested?.(ride.rideId);
     } catch (err: any) {
       setError(err?.response?.data?.message ?? "Failed to request ride.");
     } finally {
