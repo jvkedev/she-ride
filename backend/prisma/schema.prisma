@@ -83,6 +83,18 @@ enum OtpType {
   RIDE_START
 }
 
+enum TransactionType {
+  TOPUP
+  RIDE_DEDUCTION
+  REFUND
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
 model User {
   id String @id @default(cuid())
 
@@ -129,6 +141,8 @@ model Rider {
   defaultDropAddress   String?
 
   walletBalance Float @default(0)
+
+  transactions WalletTransaction[] 
 
   ridePreference RidePreference?
 
@@ -264,6 +278,8 @@ model Ride {
 
   paymentStatus PaymentStatus @default(PENDING)
 
+  transactions WalletTransaction[] 
+
   startedAt   DateTime?
   completedAt DateTime?
   cancelledAt DateTime?
@@ -310,4 +326,29 @@ model Otp {
   @@index([phoneNumber])
   @@index([code])
   @@map("otps")
+}
+
+model WalletTransaction {
+  id        String            @id @default(cuid())
+
+  riderId   String
+  rider     Rider             @relation(fields: [riderId], references: [id], onDelete: Cascade)
+
+  type      TransactionType
+  amount    Float
+  status    TransactionStatus @default(PENDING)
+
+  rideId    String?
+  ride      Ride?             @relation(fields: [rideId], references: [id])
+
+  razorpayOrderId   String?   @unique
+  razorpayPaymentId String?   @unique
+
+  note      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([riderId])
+  @@map("wallet_transactions")
 }

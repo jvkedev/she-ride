@@ -17,6 +17,9 @@ import { CaptainModule } from './modules/captain/captain.module';
 import { RidesModule } from './modules/rides/rides.module';
 import { LocationModule } from './modules/location/location.module';
 import { GatewayModule } from './modules/gateway/gateway.module';
+import { ProfileModule } from './modules/profile/profile.module';
+
+import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -43,6 +46,8 @@ import { GatewayModule } from './modules/gateway/gateway.module';
     RidesModule,
     LocationModule,
     GatewayModule,
+    ProfileModule,
+    CloudinaryModule,
   ],
   controllers: [UserController],
   providers: [
