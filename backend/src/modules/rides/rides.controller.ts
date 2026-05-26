@@ -12,6 +12,10 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RidesService } from './rides.service';
 import { CreateRideDto } from './dto/create-ride.dto';
 import { EstimateRideDto } from './dto/estimate-ride.dto';
+import { Query } from '@nestjs/common';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { JwtUser } from '../../common/types/jwt-user.type';
+import type { HistoryQueryDto } from './dto/history-ride.dto';
 
 @Controller('rides')
 @UseGuards(JwtAuthGuard)
@@ -29,10 +33,39 @@ export class RidesController {
     return this.ridesService.requestRide(dto, req.user.id);
   }
 
+  @Patch(':id/cancel')
+  async cancelRide(
+    @Param('id') rideId: string,
+    @Body('reason') reason: string,
+    @Request() req,
+  ) {
+    return this.ridesService.cancelRide(rideId, req.user.id, reason);
+  }
+
   // GET static routes
   @Get('searching')
   async getSearchingRides(@Request() req) {
     return this.ridesService.getSearchingRides(req.user.id);
+  }
+
+  // Add these two routes — IMPORTANT: place them BEFORE /:id routes
+
+  @Get('history')
+  @UseGuards(JwtAuthGuard)
+  getRiderHistory(
+    @CurrentUser() user: JwtUser,
+    @Query() query: HistoryQueryDto,
+  ) {
+    return this.ridesService.getRiderHistory(user.id, query);
+  }
+
+  @Get('history/captain')
+  @UseGuards(JwtAuthGuard)
+  getCaptainHistory(
+    @CurrentUser() user: JwtUser,
+    @Query() query: HistoryQueryDto,
+  ) {
+    return this.ridesService.getCaptainHistory(user.id, query);
   }
 
   // PATCH static routes — BEFORE any :id routes

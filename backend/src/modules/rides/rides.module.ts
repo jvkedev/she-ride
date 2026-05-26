@@ -3,9 +3,10 @@ import { RidesController } from './rides.controller';
 import { RidesService } from './rides.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OtpModule } from '../otp/otp.module';
+import { GatewayModule } from '../gateway/gateway.module';
 
 @Module({
-  imports: [OtpModule],
+  imports: [OtpModule, GatewayModule],
   controllers: [RidesController],
   providers: [RidesService, PrismaService],
   exports: [RidesService],

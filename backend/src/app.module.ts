@@ -12,6 +12,7 @@ import { RiderModule } from './modules/rider/rider.module';
 import { CaptainModule } from './modules/captain/captain.module';
 import { RidesModule } from './modules/rides/rides.module';
 import { LocationModule } from './modules/location/location.module';
+import { GatewayModule } from './modules/gateway/gateway.module';
 @Module({
   imports: [
     BullModule.forRoot({
@@ -28,6 +29,7 @@ import { LocationModule } from './modules/location/location.module';
     CaptainModule,
     RidesModule,
     LocationModule,
+    GatewayModule,
   ],
   controllers: [UserController],
 })

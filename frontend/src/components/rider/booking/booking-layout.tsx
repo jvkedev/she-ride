@@ -87,7 +87,11 @@ export default function BookingLayout() {
   const mapPanel = (
     <div className="h-full min-h-0">
       {activeRideId ? (
-        <RideLiveMap rideId={activeRideId} />
+        <RideLiveMap
+          rideId={activeRideId}
+          pickupLat={pickup?.lat}
+          pickupLng={pickup?.lng}
+        />
       ) : (
         <MapPanelSection />
       )}
@@ -145,7 +149,13 @@ export default function BookingLayout() {
       {step === "tracking" && (
         <div className="shrink-0 border-t border-neutral-200 p-4 lg:hidden">
           <div className="h-56 min-h-56 overflow-hidden rounded-2xl">
-            {activeRideId && <RideLiveMap rideId={activeRideId} />}
+            {activeRideId && (
+              <RideLiveMap
+                rideId={activeRideId}
+                pickupLat={pickup?.lat}
+                pickupLng={pickup?.lng}
+              />
+            )}
           </div>
         </div>
       )}

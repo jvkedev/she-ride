@@ -8,15 +8,18 @@ import {
   acceptRide,
   CaptainRideRequest,
 } from "@/services/captain/captain-rides.service";
+import { useCaptainStore } from "@/store/captain.store";
 
 type RequestListProps = {
   showTimer?: boolean;
   compact?: boolean;
+  onRideAccepted?: (rideId: string) => void;
 };
 
 export default function RequestList({
   showTimer = false,
   compact = false,
+  onRideAccepted,
 }: RequestListProps) {
   const [requests, setRequests] = useState<CaptainRideRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,11 +42,21 @@ export default function RequestList({
   }, []);
 
   async function handleAccept(rideId: string) {
+    console.log("handleAccept called with:", rideId);
     try {
-      await acceptRide(rideId);
+      const result = await acceptRide(rideId);
+      console.log("acceptRide result:", result);
       setRequests((prev) => prev.filter((r) => r.rideId !== rideId));
+
+      // Set directly in Zustand store
+      const store = useCaptainStore.getState();
+      console.log("Store before:", store.activeRideId);
+      store.setActiveRideId(rideId);
+      console.log("Store after:", useCaptainStore.getState().activeRideId);
+
+      onRideAccepted?.(rideId);
     } catch (err: any) {
-      console.error("Failed to accept ride:", err?.response?.data?.message);
+      console.error("Accept failed:", err?.response?.data);
     }
   }
 

@@ -6,15 +6,18 @@ import {
 } from '@nestjs/common';
 import axios from 'axios';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RideGateway } from '../gateway/ride.gateway';
 import { OtpService } from '../otp/otp.service';
 import {
   RideStatus,
   PaymentMethod,
   VehicleType,
   OtpType,
+  UserRole,
 } from '@prisma/client';
 import { CreateRideDto } from './dto/create-ride.dto';
 import { EstimateRideDto } from './dto/estimate-ride.dto';
+import { HistoryQueryDto } from './dto/history-ride.dto';
 import { haversineDistance } from './helpers/haversine.helper';
 import { calculateFare } from './helpers/fare.helper';
 
@@ -23,6 +26,7 @@ export class RidesService {
   constructor(
     private prisma: PrismaService,
     private otpService: OtpService,
+    private gateway: RideGateway,
   ) {}
 
   // ========================== Estimate Ride ==========================
@@ -63,6 +67,194 @@ export class RidesService {
     );
 
     return estimates;
+  }
+
+  // Add these two methods to RidesService
+
+  async getRiderHistory(userId: string, query: HistoryQueryDto) {
+    const rider = await this.prisma.rider.findUnique({ where: { userId } });
+    if (!rider) throw new NotFoundException('Rider profile not found');
+
+    const { page, limit } = query;
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const [rides, total] = await Promise.all([
+      this.prisma.ride.findMany({
+        where: {
+          riderId: rider.id,
+          status: { in: [RideStatus.COMPLETED, RideStatus.CANCELED] },
+        },
+        orderBy: { completedAt: 'desc' },
+        skip,
+        take: Number(limit),
+        select: {
+          id: true,
+          pickupAddress: true,
+          dropAddress: true,
+          distanceInKm: true,
+          finalFare: true,
+          estimatedFare: true,
+          vehicleType: true,
+          paymentMethod: true,
+          status: true,
+          startedAt: true,
+          completedAt: true,
+          captain: {
+            select: {
+              user: { select: { fullName: true, phoneNumber: true } },
+              rating: true,
+              vehicle: {
+                select: {
+                  brand: true,
+                  model: true,
+                  color: true,
+                  vehicleNumber: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.ride.count({
+        where: {
+          riderId: rider.id,
+          status: { in: [RideStatus.COMPLETED, RideStatus.CANCELED] },
+        },
+      }),
+    ]);
+
+    return {
+      data: rides,
+      meta: {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(total / Number(limit)),
+      },
+    };
+  }
+
+  async cancelRide(rideId: string, userId: string, reason?: string) {
+    const rider = await this.prisma.rider.findUnique({ where: { userId } });
+    const captain = await this.prisma.captain.findUnique({ where: { userId } });
+
+    if (!rider && !captain) {
+      throw new BadRequestException('User profile not found');
+    }
+
+    const ride = await this.prisma.ride.findUnique({ where: { id: rideId } });
+    if (!ride) throw new NotFoundException('Ride not found');
+
+    const cancellableStatuses = [
+      RideStatus.SEARCHING,
+      RideStatus.ACCEPTED,
+      RideStatus.ARRIVING,
+    ] as RideStatus[];
+
+    if (!cancellableStatuses.includes(ride.status)) {
+      throw new BadRequestException(
+        `Ride cannot be cancelled in ${ride.status.toLowerCase()} status`,
+      );
+    }
+
+    if (rider && ride.riderId !== rider.id) {
+      throw new UnauthorizedException('You are not the rider of this ride');
+    }
+    if (captain && ride.captainId !== captain.id) {
+      throw new UnauthorizedException('You are not assigned to this ride');
+    }
+
+    // Use UserRole enum to match your schema
+    const cancelledBy = rider ? UserRole.RIDER : UserRole.CAPTAIN;
+
+    const updated = await this.prisma.ride.update({
+      where: { id: rideId },
+      data: {
+        status: RideStatus.CANCELED,
+        cancelledBy,
+        cancellationReason: reason ?? null,
+        cancelledAt: new Date(),
+      },
+    });
+
+    // Free up captain if one was assigned
+    if (ride.captainId) {
+      await this.prisma.captain.update({
+        where: { id: ride.captainId },
+        data: { isOnline: true },
+      });
+    }
+
+    // Notify via socket
+    this.gateway.notifyRideStatusChange(rideId, {
+      rideId,
+      status: RideStatus.CANCELED,
+      cancelledBy,
+      reason: reason ?? null,
+    });
+
+    return {
+      rideId: updated.id,
+      status: updated.status,
+      cancelledBy,
+      cancellationReason: updated.cancellationReason,
+      cancelledAt: updated.cancelledAt,
+    };
+  }
+
+  async getCaptainHistory(userId: string, query: HistoryQueryDto) {
+    const captain = await this.prisma.captain.findUnique({ where: { userId } });
+    if (!captain) throw new NotFoundException('Captain profile not found');
+
+    const { page, limit } = query;
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const [rides, total] = await Promise.all([
+      this.prisma.ride.findMany({
+        where: {
+          captainId: captain.id,
+          status: { in: [RideStatus.COMPLETED, RideStatus.CANCELED] },
+        },
+        orderBy: { completedAt: 'desc' },
+        skip,
+        take: Number(limit),
+        select: {
+          id: true,
+          pickupAddress: true,
+          dropAddress: true,
+          distanceInKm: true,
+          finalFare: true,
+          estimatedFare: true,
+          vehicleType: true,
+          paymentMethod: true,
+          status: true,
+          startedAt: true,
+          completedAt: true,
+          rider: {
+            select: {
+              user: { select: { fullName: true, phoneNumber: true } },
+              averageRating: true,
+            },
+          },
+        },
+      }),
+      this.prisma.ride.count({
+        where: {
+          captainId: captain.id,
+          status: { in: [RideStatus.COMPLETED, RideStatus.CANCELED] },
+        },
+      }),
+    ]);
+
+    return {
+      data: rides,
+      meta: {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(total / Number(limit)),
+      },
+    };
   }
 
   // ========================== Request Ride ==========================
@@ -204,6 +396,18 @@ export class RidesService {
       OtpType.RIDE_START,
       updated.rider.user.phoneNumber,
     );
+
+    this.gateway.notifyRiderCaptainAccepted(updated.rider.user.id, {
+      rideId: updated.id,
+      status: updated.status,
+      captain: {
+        name: captain.id, // we'll update this when we have captain name
+        lat: captain.currentLatitude,
+        lng: captain.currentLongitude,
+      },
+      pickupAddress: updated.pickupAddress,
+      dropAddress: updated.dropAddress,
+    });
 
     return {
       rideId: updated.id,

@@ -30,6 +30,30 @@ export interface RequestRideResponse {
   paymentMethod: string;
 }
 
+export interface RideHistoryItem {
+  id: string;
+  pickupAddress: string;
+  dropAddress: string;
+  distanceInKm: number;
+  finalFare: number | null;
+  estimatedFare: number;
+  vehicleType: string;
+  paymentMethod: string;
+  status: "COMPLETED" | "CANCELED";
+  startedAt: string | null;
+  completedAt: string | null;
+  captain?: {
+    user: { fullName: string; phoneNumber: string };
+    rating: number;
+    vehicle: {
+      brand: string;
+      model: string;
+      color: string;
+      vehicleNumber: string;
+    };
+  };
+}
+
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
 });
@@ -54,4 +78,41 @@ export async function requestRide(
     headers: { Authorization: `Bearer ${getToken()}` },
   });
   return data;
+}
+
+export interface RideHistoryResponse {
+  data: RideHistoryItem[];
+  meta: { total: number; page: number; limit: number; totalPages: number };
+}
+
+export async function getRiderHistory(
+  page = 1,
+  limit = 10,
+): Promise<RideHistoryResponse> {
+  const token = localStorage.getItem("accessToken");
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/rides/history?page=${page}&limit=${limit}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!res.ok) throw new Error("Failed to fetch ride history");
+  return res.json();
+}
+
+export async function cancelRide(
+  rideId: string,
+  reason?: string,
+): Promise<void> {
+  const token = localStorage.getItem("accessToken");
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/rides/${rideId}/cancel`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ reason }),
+    },
+  );
+  if (!res.ok) throw new Error("Failed to cancel ride");
 }

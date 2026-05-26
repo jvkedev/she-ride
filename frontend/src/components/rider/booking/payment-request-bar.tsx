@@ -53,9 +53,10 @@ export default function PaymentRequestBar({
         vehicleType,
         paymentMethod: "CASH",
       });
-
+      console.log("Ride created:", ride.rideId);
       onRideRequested?.(ride.rideId);
     } catch (err: any) {
+      console.error("Request failed:", err?.response?.data);
       setError(err?.response?.data?.message ?? "Failed to request ride.");
     } finally {
       setLoading(false);

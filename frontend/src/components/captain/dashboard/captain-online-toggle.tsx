@@ -21,7 +21,7 @@ export default function CaptainOnlineToggle({
       disabled={disabled}
       onClick={() => onToggle(!isOnline)}
       className={cn(
-        "relative inline-flex h-8 w-[3.25rem] shrink-0 items-center rounded-full border transition",
+        "relative inline-flex h-8 w-13 shrink-0 items-center rounded-full border transition",
         isOnline
           ? "border-primary bg-primary"
           : "border-neutral-300 bg-neutral-200",
