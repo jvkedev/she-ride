@@ -12,7 +12,7 @@ import {
 import L from "leaflet";
 import MapController from "@/components/maps/map-controller";
 import MapZoomControls from "@/components/maps/map-zoom-controls";
-import axios from "axios";
+import axiosClient from "@/services/api/axios-client";
 import React from "react";
 import {
   Search,
@@ -170,7 +170,7 @@ export default function RideLiveMap({
 
     const interval = setInterval(async () => {
       try {
-        const { data } = await axios.get(
+        const { data } = await axiosClient.get(
           `${process.env.NEXT_PUBLIC_API_URL}/rides/${rideId}/captain-location`,
           { headers: { Authorization: `Bearer ${token}` } },
         );
@@ -210,7 +210,7 @@ export default function RideLiveMap({
     <div className="relative h-full w-full">
       {/* Status banner */}
       {config && (
-        <div className="absolute top-3 left-1/2 z-[1000] -translate-x-1/2 flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium shadow-md">
+        <div className="absolute top-3 left-1/2 z-1000 -translate-x-1/2 flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium shadow-md">
           <span className={config.color}>{config.icon}</span>
           <span className="text-neutral-700">{config.label}</span>
         </div>
@@ -218,7 +218,7 @@ export default function RideLiveMap({
 
       {/* Cancel button — only when cancellable */}
       {CANCELLABLE.includes(rideStatus) && (
-        <div className="absolute bottom-4 left-1/2 z-[1000] -translate-x-1/2 w-[calc(100%-2rem)]">
+        <div className="absolute bottom-4 left-1/2 z-1000 -translate-x-1/2 w-[calc(100%-2rem)]">
           <button
             onClick={handleCancel}
             disabled={cancelling}

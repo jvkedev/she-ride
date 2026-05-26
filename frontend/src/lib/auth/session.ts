@@ -10,12 +10,18 @@ export type AuthUser = {
 };
 
 const ACCESS_TOKEN_KEY = "accessToken";
+const REFRESH_TOKEN_KEY = "refreshToken";
 const USER_KEY = "user";
 const ROLE_SELECTION_GRANT_KEY = "roleSelectionGranted";
 
 export function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem(ACCESS_TOKEN_KEY);
+}
+
+export function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
 }
 
 export function getStoredUser(): AuthUser | null {
@@ -32,10 +38,14 @@ export function getStoredUser(): AuthUser | null {
 export function setAuthSession(
   accessToken: string,
   user: AuthUser,
-  options?: { grantRoleSelection?: boolean },
+  options?: { grantRoleSelection?: boolean; refreshToken?: string }, // ← add refreshToken
 ) {
   localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
+
+  if (options?.refreshToken) {
+    localStorage.setItem(REFRESH_TOKEN_KEY, options.refreshToken); // ← save it
+  }
 
   if (options?.grantRoleSelection) {
     localStorage.setItem(ROLE_SELECTION_GRANT_KEY, "1");
@@ -68,4 +78,11 @@ export function getDashboardPathForRole(role: AuthUser["role"]): string {
     default:
       return "/login";
   }
+}
+
+export function clearAuthSession() {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(ROLE_SELECTION_GRANT_KEY);
 }

@@ -1,4 +1,4 @@
-import axios from "axios";
+import { apiFetch } from "@/services/api/api-client";
 
 export interface RideEstimate {
   vehicleType: "CAR" | "AUTO" | "BIKE" | "SUV";
@@ -54,46 +54,38 @@ export interface RideHistoryItem {
   };
 }
 
-const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
-});
-
-function getToken() {
-  return localStorage.getItem("accessToken") ?? "";
+export interface RideHistoryResponse {
+  data: RideHistoryItem[];
+  meta: { total: number; page: number; limit: number; totalPages: number };
 }
 
 export async function estimateRide(
   payload: EstimateRidePayload,
 ): Promise<RideEstimate[]> {
-  const { data } = await api.post("/rides/estimate", payload, {
-    headers: { Authorization: `Bearer ${getToken()}` },
+  const res = await apiFetch("/rides/estimate", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
-  return data;
+  if (!res.ok) throw new Error("Failed to estimate ride");
+  return res.json();
 }
 
 export async function requestRide(
   payload: RequestRidePayload,
 ): Promise<RequestRideResponse> {
-  const { data } = await api.post("/rides/request", payload, {
-    headers: { Authorization: `Bearer ${getToken()}` },
+  const res = await apiFetch("/rides/request", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
-  return data;
-}
-
-export interface RideHistoryResponse {
-  data: RideHistoryItem[];
-  meta: { total: number; page: number; limit: number; totalPages: number };
+  if (!res.ok) throw new Error("Failed to request ride");
+  return res.json();
 }
 
 export async function getRiderHistory(
   page = 1,
   limit = 10,
 ): Promise<RideHistoryResponse> {
-  const token = localStorage.getItem("accessToken");
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/rides/history?page=${page}&limit=${limit}`,
-    { headers: { Authorization: `Bearer ${token}` } },
-  );
+  const res = await apiFetch(`/rides/history?page=${page}&limit=${limit}`);
   if (!res.ok) throw new Error("Failed to fetch ride history");
   return res.json();
 }
@@ -102,17 +94,9 @@ export async function cancelRide(
   rideId: string,
   reason?: string,
 ): Promise<void> {
-  const token = localStorage.getItem("accessToken");
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/rides/${rideId}/cancel`,
-    {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ reason }),
-    },
-  );
+  const res = await apiFetch(`/rides/${rideId}/cancel`, {
+    method: "PATCH",
+    body: JSON.stringify({ reason }),
+  });
   if (!res.ok) throw new Error("Failed to cancel ride");
 }

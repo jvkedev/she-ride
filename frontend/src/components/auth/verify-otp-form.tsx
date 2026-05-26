@@ -60,6 +60,7 @@ export default function VerifyOtpForm() {
       if (token && user) {
         setAuthSession(token, user, {
           grantRoleSelection: Boolean(res.requiresRoleSelection),
+          refreshToken: res.refreshToken,
         });
       }
 
