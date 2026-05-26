@@ -11,6 +11,7 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import type { JwtUser } from '../../common/types/jwt-user.type';
+import { Throttle, SkipThrottle } from '@nestjs/throttler';
 
 import {
   registerSchema,
@@ -38,6 +39,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('test-otp')
+  @SkipThrottle()
   async testOtp() {
     const numbers = ['9045499732', '9266540690', '8171340519'];
 
@@ -51,6 +53,7 @@ export class AuthController {
   }
 
   @Post('register/send-otp')
+  @Throttle({ default: { ttl: 600_000, limit: 3 } })
   @UsePipes(new ZodValidationPipe(registerSchema))
   sendRegisterOtp(@Body() dto: RegisterDto) {
     return this.authService.sendRegisterOtp(dto);
@@ -63,6 +66,7 @@ export class AuthController {
   }
 
   @Post('login/send-otp')
+  @Throttle({ default: { ttl: 600_000, limit: 3 } })
   @UsePipes(new ZodValidationPipe(sendLoginOtpSchema))
   sendLoginOtp(@Body() dto: SendLoginOtpDto) {
     return this.authService.sendLoginOtp(dto);
@@ -75,6 +79,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @SkipThrottle()
   @UsePipes(new ZodValidationPipe(refreshTokenSchema))
   refresh(@Body() dto: RefreshTokenDto) {
     return this.authService.refreshToken(dto);

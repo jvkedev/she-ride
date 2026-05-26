@@ -1,5 +1,9 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 
 import { AuthModule } from './modules/auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -13,12 +17,21 @@ import { CaptainModule } from './modules/captain/captain.module';
 import { RidesModule } from './modules/rides/rides.module';
 import { LocationModule } from './modules/location/location.module';
 import { GatewayModule } from './modules/gateway/gateway.module';
+
 @Module({
   imports: [
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          name: 'default',
+          ttl: 60_000, // 1 min window
+          limit: 20, // 20 requests per min globally
+        },
+      ],
+      storage: new ThrottlerStorageRedisService(env.REDIS_URL),
+    }),
     BullModule.forRoot({
-      connection: {
-        url: env.REDIS_URL,
-      },
+      connection: { url: env.REDIS_URL },
     }),
     PrismaModule,
     AuthModule,
@@ -32,5 +45,11 @@ import { GatewayModule } from './modules/gateway/gateway.module';
     GatewayModule,
   ],
   controllers: [UserController],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}

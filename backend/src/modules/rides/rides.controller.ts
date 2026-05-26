@@ -16,6 +16,7 @@ import { Query } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { JwtUser } from '../../common/types/jwt-user.type';
 import type { HistoryQueryDto } from './dto/history-ride.dto';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('rides')
 @UseGuards(JwtAuthGuard)
@@ -95,6 +96,7 @@ export class RidesController {
   }
 
   @Patch(':id/start')
+  @Throttle({ default: { ttl: 600_000, limit: 5 } })
   async startRide(
     @Param('id') rideId: string,
     @Body('otp') otp: string,
