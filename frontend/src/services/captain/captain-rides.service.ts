@@ -1,4 +1,4 @@
-import axios from "axios";
+import { apiFetch } from "@/services/api/api-client";
 
 export interface CaptainRideRequest {
   rideId: string;
@@ -25,58 +25,78 @@ export interface AcceptRideResponse {
   dropAddress: string;
 }
 
-const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
-});
-
-function getToken() {
-  if (typeof window === "undefined") return "";
-  return localStorage.getItem("accessToken") ?? "";
+export interface ActiveRideDetails {
+  rideId: string;
+  status: string;
+  rider: {
+    name: string;
+    phone: string;
+  };
+  pickupAddress: string;
+  dropAddress: string;
+  estimatedFare: number | null;
+  finalFare: number | null;
+  distanceInKm: number | null;
+  vehicleType: string;
+  paymentMethod: string;
 }
 
-function authHeader() {
-  return { Authorization: `Bearer ${getToken()}` };
-}
-
-// Get all SEARCHING rides matching captain's vehicle type
 export async function getSearchingRides(): Promise<CaptainRideRequest[]> {
-  const { data } = await api.get("/rides/searching", {
-    headers: authHeader(),
-  });
-  return data;
+  const res = await apiFetch("/rides/searching");
+  if (!res.ok) throw new Error("Failed to fetch rides");
+  return res.json();
 }
 
-// Accept a ride request
 export async function acceptRide(rideId: string): Promise<AcceptRideResponse> {
-  const { data } = await api.patch(
-    `/rides/${rideId}/accept`,
-    {},
-    { headers: authHeader() },
-  );
-  return data;
+  const res = await apiFetch(`/rides/${rideId}/accept`, { method: "PATCH" });
+  if (!res.ok) throw new Error("Failed to accept ride");
+  return res.json();
 }
 
 export async function updateLocation(lat: number, lng: number): Promise<void> {
-  await api.patch("/rides/location", { lat, lng }, { headers: authHeader() });
+  await apiFetch("/rides/location", {
+    method: "PATCH",
+    body: JSON.stringify({ lat, lng }),
+  });
 }
 
-// Mark captain as arrived at pickup
 export async function markArrived(rideId: string): Promise<void> {
-  await api.patch(`/rides/${rideId}/arrived`, {}, { headers: authHeader() });
+  const res = await apiFetch(`/rides/${rideId}/arrived`, { method: "PATCH" });
+  if (!res.ok) throw new Error("Failed to mark arrived");
 }
 
-// Start ride with OTP verification
 export async function startRide(rideId: string, otp: string): Promise<void> {
-  await api.patch(`/rides/${rideId}/start`, { otp }, { headers: authHeader() });
+  const res = await apiFetch(`/rides/${rideId}/start`, {
+    method: "PATCH",
+    body: JSON.stringify({ otp }),
+  });
+  if (!res.ok) throw new Error("Failed to start ride");
 }
 
-// Complete ride
 export async function completeRide(rideId: string): Promise<void> {
-  await api.patch(`/rides/${rideId}/complete`, {}, { headers: authHeader() });
+  const res = await apiFetch(`/rides/${rideId}/complete`, { method: "PATCH" });
+  if (!res.ok) throw new Error("Failed to complete ride");
 }
 
-// Decline — local only, no backend call needed
+export async function cancelRideAsCaptain(
+  rideId: string,
+  reason?: string,
+): Promise<void> {
+  const res = await apiFetch(`/rides/${rideId}/cancel`, {
+    method: "PATCH",
+    body: JSON.stringify({ reason }),
+  });
+  if (!res.ok) throw new Error("Failed to cancel ride");
+}
+
+export async function getActiveRide(
+  rideId: string,
+): Promise<ActiveRideDetails> {
+  const res = await apiFetch(`/rides/${rideId}/details`);
+  if (!res.ok) throw new Error("Failed to fetch active ride");
+  return res.json();
+}
+
 export function declineRide(rideId: string): void {
-  // No backend endpoint — just remove from local list
   console.log("Declined ride:", rideId);
 }

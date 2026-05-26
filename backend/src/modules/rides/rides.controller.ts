@@ -33,6 +33,11 @@ export class RidesController {
     return this.ridesService.requestRide(dto, req.user.id);
   }
 
+  @Get(':id/details')
+  async getRideDetails(@Param('id') rideId: string, @Request() req) {
+    return this.ridesService.getRideDetails(rideId, req.user.id);
+  }
+
   @Patch(':id/cancel')
   async cancelRide(
     @Param('id') rideId: string,

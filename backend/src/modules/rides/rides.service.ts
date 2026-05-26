@@ -257,6 +257,37 @@ export class RidesService {
     };
   }
 
+  async getRideDetails(rideId: string, userId: string) {
+    const captain = await this.prisma.captain.findUnique({ where: { userId } });
+    if (!captain) throw new BadRequestException('Captain profile not found');
+
+    const ride = await this.prisma.ride.findUnique({
+      where: { id: rideId },
+      include: {
+        rider: { include: { user: true } },
+      },
+    });
+    if (!ride) throw new NotFoundException('Ride not found');
+    if (ride.captainId !== captain.id)
+      throw new UnauthorizedException('Not your ride');
+
+    return {
+      rideId: ride.id,
+      status: ride.status,
+      rider: {
+        name: ride.rider.user.fullName,
+        phone: ride.rider.user.phoneNumber,
+      },
+      pickupAddress: ride.pickupAddress,
+      dropAddress: ride.dropAddress,
+      estimatedFare: ride.estimatedFare,
+      finalFare: ride.finalFare,
+      distanceInKm: ride.distanceInKm,
+      vehicleType: ride.vehicleType,
+      paymentMethod: ride.paymentMethod,
+    };
+  }
+
   // ========================== Request Ride ==========================
   async requestRide(dto: CreateRideDto, userId: string) {
     // 1. Get rider profile

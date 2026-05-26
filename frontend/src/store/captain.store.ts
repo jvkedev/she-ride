@@ -7,8 +7,5 @@ interface CaptainStore {
 
 export const useCaptainStore = create<CaptainStore>((set) => ({
   activeRideId: null,
-  setActiveRideId: (rideId) => {
-    console.log("Zustand setActiveRideId called with:", rideId);
-    set({ activeRideId: rideId });
-  },
+  setActiveRideId: (id: string | null) => set({ activeRideId: id }),
 }));
