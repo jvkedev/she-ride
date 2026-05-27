@@ -10,7 +10,9 @@ type UseSecurityWebSocketOptions = {
   simulateLive?: boolean;
 };
 
-export function useSecurityWebSocket(options: UseSecurityWebSocketOptions = {}) {
+export function useSecurityWebSocket(
+  options: UseSecurityWebSocketOptions = {},
+) {
   const { simulateLive = true } = options;
   const [connected, setConnected] = useState(false);
   const [events, setEvents] = useState<SecurityActivity[]>(securityActivity);
@@ -24,6 +26,8 @@ export function useSecurityWebSocket(options: UseSecurityWebSocketOptions = {}) 
     let cancelled = false;
 
     try {
+      if (!SECURITY_WS_URL) return;
+
       const ws = new WebSocket(SECURITY_WS_URL);
       wsRef.current = ws;
 

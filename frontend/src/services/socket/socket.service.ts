@@ -1,6 +1,8 @@
 import { io, Socket } from "socket.io-client";
 
 let socket: Socket | null = null;
+let registeredUserId: string | null = null;
+let connectListenerInitialized = false;
 
 export function getSocket(): Socket {
   if (!socket) {
@@ -17,25 +19,47 @@ export function getSocket(): Socket {
 
 export function connectSocket(userId: string): Socket {
   const s = getSocket();
+
+  registeredUserId = userId;
+
+  if (!connectListenerInitialized) {
+    s.on("connect", () => {
+      if (registeredUserId) {
+        s.emit("register", { userId: registeredUserId });
+      }
+    });
+    connectListenerInitialized = true;
+  }
+
   if (!s.connected) {
     s.connect();
   }
-  s.on("connect", () => {
-    s.emit("register", { userId });
-  });
-  s.emit("register", { userId });
+
+  if (s.connected && registeredUserId) {
+    s.emit("register", { userId: registeredUserId });
+  }
+
   return s;
 }
 
 export function disconnectSocket() {
-  if (socket?.connected) {
-    socket.disconnect();
-    socket = null; // ← reset so next connect is fresh
+  if (socket) {
+    socket.removeAllListeners();
+    if (socket.connected) {
+      socket.disconnect();
+    }
+    socket = null; // reset so next connect is fresh
   }
+  registeredUserId = null;
+  connectListenerInitialized = false;
 }
 
 export function joinRideRoom(rideId: string) {
-  getSocket().emit("join:ride", { rideId });
+  const s = getSocket();
+  if (!s.connected) {
+    s.connect();
+  }
+  s.emit("join:ride", { rideId });
 }
 
 export async function getRoute(
@@ -63,5 +87,9 @@ export function sendCaptainLocation(
   lat: number,
   lng: number,
 ) {
-  getSocket().emit("captain:location", { rideId, userId, lat, lng });
+  const socket = getSocket();
+  if (!socket.connected) {
+    console.warn("Socket not connected yet, queuing captain:location event");
+  }
+  socket.emit("captain:location", { rideId, userId, lat, lng });
 }

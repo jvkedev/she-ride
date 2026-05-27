@@ -1,6 +1,6 @@
 "use client";
 import "leaflet/dist/leaflet.css";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   MapContainer,
   Marker,
@@ -12,7 +12,7 @@ import {
 import L from "leaflet";
 import MapController from "@/components/maps/map-controller";
 import MapZoomControls from "@/components/maps/map-zoom-controls";
-import axiosClient from "@/services/api/axios-client";
+import axios from "axios";
 import React from "react";
 import {
   Search,
@@ -27,16 +27,89 @@ import {
   joinRideRoom,
   getRoute,
 } from "@/services/socket/socket.service";
-import { cancelRide } from "@/services/rides/rides.service";
-
-const CaptainIcon = new L.Icon({
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
 
 const DEFAULT: [number, number] = [28.6139, 77.209];
+
+// Vehicle emoji icon for captain
+function createVehicleIcon(vehicleType?: string) {
+  const emoji =
+    vehicleType === "BIKE"
+      ? "🏍️"
+      : vehicleType === "AUTO"
+        ? "🛺"
+        : vehicleType === "SUV"
+          ? "🚙"
+          : "🚗";
+
+  return L.divIcon({
+    className: "",
+    html: `<div style="
+      font-size:28px;line-height:1;
+      filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+      user-select:none;
+    ">${emoji}</div>`,
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
+  });
+}
+
+// Pink dot for rider
+function createRiderIcon() {
+  return L.divIcon({
+    className: "",
+    html: `<div style="
+      width:16px;height:16px;
+      background:#ec4899;border:3px solid white;
+      border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.35);
+    "></div>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+  });
+}
+
+function getDistanceKm(
+  [lat1, lng1]: [number, number],
+  [lat2, lng2]: [number, number],
+) {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const R = 6371; // kilometers
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// Pans to a position only when it's a real GPS coord (not DEFAULT)
+function MapPanner({
+  position,
+  hasRealGps,
+}: {
+  position: [number, number];
+  hasRealGps: boolean;
+}) {
+  const map = useMap();
+  const hasFlown = useRef(false);
+
+  useEffect(() => {
+    if (!hasRealGps) return;
+    if (!Number.isFinite(position[0]) || !Number.isFinite(position[1])) return;
+
+    if (!hasFlown.current) {
+      const t = setTimeout(() => {
+        map.setView(position, 15, { animate: false });
+        hasFlown.current = true;
+      }, 300);
+      return () => clearTimeout(t);
+    }
+
+    map.panTo(position, { animate: true, duration: 0.5 });
+  }, [position, hasRealGps, map]);
+
+  return null;
+}
 
 interface StatusConfig {
   icon: React.ReactNode;
@@ -77,79 +150,98 @@ const statusConfig: Record<string, StatusConfig> = {
   },
 };
 
-const CANCELLABLE = ["SEARCHING", "ACCEPTED", "ARRIVING"];
-
-function MapRecenter({ position }: { position: [number, number] }) {
-  const map = useMap();
-  useEffect(() => {
-    map.setView(position, map.getZoom());
-  }, [position, map]);
-  return null;
-}
-
 interface RideLiveMapProps {
   rideId: string;
   pickupLat?: number;
   pickupLng?: number;
+  vehicleType?: string; // so we can show correct emoji
 }
 
 export default function RideLiveMap({
   rideId,
   pickupLat,
   pickupLng,
+  vehicleType,
 }: RideLiveMapProps) {
+  // Captain location (from socket)
   const [captainPos, setCaptainPos] = useState<[number, number] | null>(null);
+  const [hasCaptain, setHasCaptain] = useState(false);
+
+  // Rider's own live location
+  const [riderPos, setRiderPos] = useState<[number, number]>(DEFAULT);
+  const [hasRiderGps, setHasRiderGps] = useState(false);
+
   const [rideStatus, setRideStatus] = useState<string>("SEARCHING");
-  const [cancelling, setCancelling] = useState(false);
   const [path, setPath] = useState<[number, number][]>([]);
   const [route, setRoute] = useState<[number, number][]>([]);
+  const [distanceToCaptain, setDistanceToCaptain] = useState<number | null>(
+    null,
+  );
 
-  const pickupLatRef = useRef(pickupLat);
-  const pickupLngRef = useRef(pickupLng);
+  const watchId = useRef<number | null>(null);
+  const captainIcon = useRef(createVehicleIcon(vehicleType));
+  const riderIcon = useRef(createRiderIcon());
 
+  // Update captain icon when vehicle type changes
   useEffect(() => {
-    pickupLatRef.current = pickupLat;
-    pickupLngRef.current = pickupLng;
-  }, [pickupLat, pickupLng]);
+    captainIcon.current = createVehicleIcon(vehicleType);
+  }, [vehicleType]);
 
+  // Rider's own GPS — updates every 3s
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+
+    watchId.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const lat = Number(pos.coords.latitude);
+        const lng = Number(pos.coords.longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        setRiderPos([lat, lng]);
+        setHasRiderGps(true);
+      },
+      (err) => console.error("Rider GPS error:", err.message),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 3000 },
+    );
+
+    return () => {
+      if (watchId.current !== null)
+        navigator.geolocation.clearWatch(watchId.current);
+    };
+  }, []);
+
+  // Socket — listen for captain location updates
   useEffect(() => {
     if (!rideId) return;
 
     const token = localStorage.getItem("accessToken") ?? "";
-    let payload: { sub: string; role: string };
-
+    let payload: { sub: string } | null = null;
     try {
       payload = JSON.parse(atob(token.split(".")[1]));
     } catch {
       return;
     }
 
-    const socket = connectSocket(payload.sub);
-
-    const doJoin = () => {
-      socket.emit("register", { userId: payload.sub });
-      joinRideRoom(rideId);
-    };
-
-    if (socket.connected) {
-      doJoin();
-    } else {
-      socket.once("connect", doJoin);
-    }
+    const socket = connectSocket(payload!.sub);
+    joinRideRoom(rideId);
 
     socket.on(
       "captain:location",
       async (data: { lat: number; lng: number }) => {
+        if (!Number.isFinite(data.lat) || !Number.isFinite(data.lng)) return;
         const pos: [number, number] = [data.lat, data.lng];
         setCaptainPos(pos);
+        setHasCaptain(true);
         setPath((prev) => [...prev, pos]);
 
-        const pLat = pickupLatRef.current;
-        const pLng = pickupLngRef.current;
-
-        if (pLat && pLng) {
-          const osrmRoute = await getRoute(data.lat, data.lng, pLat, pLng);
-          setRoute(osrmRoute);
+        // OSRM route: captain → pickup
+        if (pickupLat && pickupLng) {
+          const osrmRoute = await getRoute(
+            data.lat,
+            data.lng,
+            pickupLat,
+            pickupLng,
+          );
+          if (osrmRoute.length > 1) setRoute(osrmRoute);
         }
       },
     );
@@ -160,51 +252,51 @@ export default function RideLiveMap({
 
     socket.on("ride:status", (data: { status: string }) => {
       setRideStatus(data.status);
-      // Auto-redirect on cancel from captain side
-      if (data.status === "CANCELED") {
-        setTimeout(() => {
-          window.location.href = "/rider";
-        }, 2000);
-      }
     });
 
+    // Fallback poll every 5s for status
     const interval = setInterval(async () => {
       try {
-        const { data } = await axiosClient.get(
+        const { data } = await axios.get(
           `${process.env.NEXT_PUBLIC_API_URL}/rides/${rideId}/captain-location`,
           { headers: { Authorization: `Bearer ${token}` } },
         );
-        setRideStatus(data.status);
-        if (data.lat && data.lng) {
+        if (data.status) setRideStatus(data.status);
+        if (
+          data.lat &&
+          data.lng &&
+          Number.isFinite(data.lat) &&
+          Number.isFinite(data.lng)
+        ) {
           setCaptainPos([data.lat, data.lng]);
+          setHasCaptain(true);
         }
-      } catch {}
+      } catch {
+        // silently ignore
+      }
     }, 5000);
 
     return () => {
       socket.off("captain:location");
       socket.off("ride:accepted");
       socket.off("ride:status");
-      socket.off("connect", doJoin);
       clearInterval(interval);
     };
-  }, [rideId]);
+  }, [rideId, pickupLat, pickupLng]);
 
-  async function handleCancel() {
-    if (!confirm("Are you sure you want to cancel this ride?")) return;
-    try {
-      setCancelling(true);
-      await cancelRide(rideId, "Cancelled by rider");
-      window.location.href = "/rider";
-    } catch {
-      alert("Failed to cancel ride. Please try again.");
-    } finally {
-      setCancelling(false);
+  useEffect(() => {
+    if (captainPos && hasRiderGps) {
+      setDistanceToCaptain(getDistanceKm(captainPos, riderPos));
+    } else {
+      setDistanceToCaptain(null);
     }
-  }
+  }, [captainPos, riderPos, hasRiderGps]);
 
-  const center = captainPos ?? DEFAULT;
   const config = statusConfig[rideStatus];
+
+  // Pan to captain when found, otherwise rider
+  const focusPos = hasCaptain ? captainPos! : hasRiderGps ? riderPos : DEFAULT;
+  const hasFocus = hasCaptain || hasRiderGps;
 
   return (
     <div className="relative h-full w-full">
@@ -212,25 +304,24 @@ export default function RideLiveMap({
       {config && (
         <div className="absolute top-3 left-1/2 z-1000 -translate-x-1/2 flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium shadow-md">
           <span className={config.color}>{config.icon}</span>
-          <span className="text-neutral-700">{config.label}</span>
-        </div>
-      )}
-
-      {/* Cancel button — only when cancellable */}
-      {CANCELLABLE.includes(rideStatus) && (
-        <div className="absolute bottom-4 left-1/2 z-1000 -translate-x-1/2 w-[calc(100%-2rem)]">
-          <button
-            onClick={handleCancel}
-            disabled={cancelling}
-            className="w-full rounded-xl border border-red-200 bg-white py-3 text-sm font-medium text-red-500 shadow-md hover:bg-red-50 disabled:opacity-50 transition"
-          >
-            {cancelling ? "Cancelling..." : "Cancel Ride"}
-          </button>
+          <span className="text-neutral-700">
+            {config.label}
+            {distanceToCaptain !== null && hasCaptain && hasRiderGps && (
+              <>
+                {" "}
+                {` · ${
+                  distanceToCaptain < 1
+                    ? `${Math.round(distanceToCaptain * 1000)}m away`
+                    : `${distanceToCaptain.toFixed(1)} km away`
+                }`}
+              </>
+            )}
+          </span>
         </div>
       )}
 
       <MapContainer
-        center={center}
+        center={DEFAULT}
         zoom={15}
         className="h-full w-full rounded-2xl"
         style={{ height: "100%", width: "100%", minHeight: 320 }}
@@ -245,8 +336,7 @@ export default function RideLiveMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {captainPos && <MapRecenter position={captainPos} />}
-
+        {/* OSRM shortest route — blue */}
         {route.length > 1 && (
           <Polyline
             positions={route}
@@ -256,16 +346,36 @@ export default function RideLiveMap({
           />
         )}
 
+        {/* Captain movement trail — pink */}
         {path.length > 1 && (
-          <Polyline positions={path} color="#ec4899" weight={2} opacity={0.5} />
+          <Polyline positions={path} color="#ec4899" weight={2} opacity={0.4} />
         )}
 
-        {captainPos && (
-          <Marker position={captainPos} icon={CaptainIcon}>
+        {hasCaptain && hasRiderGps && captainPos && (
+          <Polyline
+            positions={[riderPos, captainPos]}
+            color="#f59e0b"
+            dashArray="8,8"
+            weight={3}
+            opacity={0.75}
+          />
+        )}
+
+        {/* Captain marker — vehicle emoji */}
+        {hasCaptain && captainPos && (
+          <Marker position={captainPos} icon={captainIcon.current}>
             <Popup>Captain is here</Popup>
           </Marker>
         )}
 
+        {/* Rider marker — pink dot */}
+        {hasRiderGps && (
+          <Marker position={riderPos} icon={riderIcon.current}>
+            <Popup>You are here</Popup>
+          </Marker>
+        )}
+
+        <MapPanner position={focusPos} hasRealGps={hasFocus} />
         <MapController />
         <MapZoomControls />
       </MapContainer>

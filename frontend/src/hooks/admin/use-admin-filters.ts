@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState } from "react"
+import { adminRiders } from "@/lib/admin/mock-data";;
 
-export function useAdminFilters<T extends Record<string, unknown>>(
+export function useAdminFilters<T extends object>(
   items: T[],
   options: {
     searchKeys: (keyof T)[];

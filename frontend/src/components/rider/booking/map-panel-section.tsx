@@ -11,11 +11,28 @@ const MapWrapper = dynamic(() => import("@/components/maps/map-wrapper"), {
   ),
 });
 
-export default function MapPanelSection() {
+type MapPanelSectionProps = {
+  pickup?: [number, number];
+  drop?: [number, number];
+  route?: [number, number][];
+  nearbyCaptains?: number;
+};
+
+export default function MapPanelSection({
+  pickup,
+  drop,
+  route,
+  nearbyCaptains,
+}: MapPanelSectionProps) {
   return (
     <div className="relative h-full min-h-0 w-full overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
       <div className="absolute inset-0">
-        <MapWrapper />
+        <MapWrapper
+          pickup={pickup}
+          drop={drop}
+          route={route}
+          nearbyCaptains={nearbyCaptains}
+        />
       </div>
     </div>
   );

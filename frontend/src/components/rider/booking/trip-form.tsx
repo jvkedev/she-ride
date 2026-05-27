@@ -56,6 +56,7 @@ export default function TripForm({
       <LocationInput
         placeholder="Pickup location"
         icon={<MapPin className="h-4 w-4 text-pink-500 shrink-0" />}
+        autoLocate
         onSelect={setPickup}
       />
 

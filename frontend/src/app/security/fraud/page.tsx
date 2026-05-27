@@ -4,11 +4,7 @@ import DashboardPageLayout from "@/components/shared/dashboard/page-layout";
 
 export default function SecurityFraudPage() {
   return (
-    <DashboardPageLayout
-      title="Fraud detection"
-     
-      wide
-    >
+    <DashboardPageLayout title="Fraud detection" wide>
       <FraudRiskCards />
       <FraudAlertsTable />
     </DashboardPageLayout>

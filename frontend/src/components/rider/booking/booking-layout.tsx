@@ -1,12 +1,19 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import PaymentRequestBar from "@/components/rider/booking/payment-request-bar";
 import RideOptionsList from "@/components/rider/booking/ride-options-list";
 import TripForm from "@/components/rider/booking/trip-form";
 import { cn } from "@/lib/utils";
+import { getRoute } from "@/services/socket/socket.service";
 import { RideEstimate } from "@/services/rides/rides.service";
 import { LocationSuggestion } from "@/services/location/location.service";
+const VEHICLE_TYPE_MAP: Record<string, string> = {
+  "She Go": "CAR",
+  "She Auto": "AUTO",
+  "She Bike Saver": "BIKE",
+  "She SUV": "SUV",
+};
 
 const MapPanelSection = dynamic(
   () => import("@/components/rider/booking/map-panel-section"),
@@ -37,6 +44,7 @@ export default function BookingLayout() {
   const [pickup, setPickup] = useState<LocationSuggestion | null>(null);
   const [drop, setDrop] = useState<LocationSuggestion | null>(null);
   const [activeRideId, setActiveRideId] = useState<string | null>(null);
+  const [route, setRoute] = useState<[number, number][]>([]);
 
   function handleSearch(
     results: RideEstimate[],
@@ -53,6 +61,34 @@ export default function BookingLayout() {
     setActiveRideId(rideId);
     setStep("tracking");
   }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRoute() {
+      if (!pickup || !drop) {
+        setRoute([]);
+        return;
+      }
+
+      const routeData = await getRoute(
+        pickup.lat,
+        pickup.lng,
+        drop.lat,
+        drop.lng,
+      );
+
+      if (!cancelled) {
+        setRoute(routeData);
+      }
+    }
+
+    loadRoute();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pickup, drop]);
 
   const selectedEstimate = estimates.find((e) => {
     const map: Record<string, string> = {
@@ -84,6 +120,8 @@ export default function BookingLayout() {
   );
 
   // Map panel — shows captain live location after ride is requested
+  const nearbyCaptains = selectedEstimate?.nearbyCaptains ?? 0;
+
   const mapPanel = (
     <div className="h-full min-h-0">
       {activeRideId ? (
@@ -91,9 +129,15 @@ export default function BookingLayout() {
           rideId={activeRideId}
           pickupLat={pickup?.lat}
           pickupLng={pickup?.lng}
+          vehicleType={VEHICLE_TYPE_MAP[selectedRide]}
         />
       ) : (
-        <MapPanelSection />
+        <MapPanelSection
+          pickup={pickup ? [pickup.lat, pickup.lng] : undefined}
+          drop={drop ? [drop.lat, drop.lng] : undefined}
+          route={route}
+          nearbyCaptains={nearbyCaptains}
+        />
       )}
     </div>
   );
@@ -141,7 +185,12 @@ export default function BookingLayout() {
       {step === "search" && (
         <div className="shrink-0 border-t border-neutral-200 p-4 lg:hidden">
           <div className="h-56 min-h-56 overflow-hidden rounded-2xl">
-            <MapPanelSection />
+            <MapPanelSection
+              pickup={pickup ? [pickup.lat, pickup.lng] : undefined}
+              drop={drop ? [drop.lat, drop.lng] : undefined}
+              route={route}
+              nearbyCaptains={nearbyCaptains}
+            />
           </div>
         </div>
       )}

@@ -77,8 +77,24 @@ export async function requestRide(
     method: "POST",
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error("Failed to request ride");
-  return res.json();
+
+  const body = await res.text();
+  let data: any;
+  try {
+    data = body ? JSON.parse(body) : null;
+  } catch {
+    data = null;
+  }
+
+  if (!res.ok) {
+    const message =
+      data?.message || data?.error || body || "Failed to request ride";
+    const error = new Error(message);
+    (error as any).response = { data };
+    throw error;
+  }
+
+  return data as RequestRideResponse;
 }
 
 export async function getRiderHistory(

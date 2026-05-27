@@ -20,6 +20,7 @@ import { GatewayModule } from './modules/gateway/gateway.module';
 import { ProfileModule } from './modules/profile/profile.module';
 
 import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
+import { SecurityModule } from './modules/security/security.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
     GatewayModule,
     ProfileModule,
     CloudinaryModule,
+    SecurityModule,
   ],
   controllers: [UserController],
   providers: [
