@@ -25,7 +25,7 @@ export default function ChartCard({
           <p className="mt-0.5 text-xs text-neutral-500">{description}</p>
         ) : null}
       </div>
-      <div className="min-h-[240px] w-full">{children}</div>
+      <div className="h-[280px] w-full">{children}</div>
     </SurfaceCard>
   );
 }

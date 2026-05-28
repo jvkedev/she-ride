@@ -23,12 +23,16 @@ export class AuditController {
     @Query('action') action?: AuditAction,
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
     return this.auditService.getAllLogs({
       performedBy,
       action,
       from: from ? new Date(from) : undefined,
       to: to ? new Date(to) : undefined,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 50,
     });
   }
 

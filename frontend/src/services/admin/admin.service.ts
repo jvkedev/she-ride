@@ -1,5 +1,31 @@
 import axiosClient from "@/services/api/axios-client";
-import type { AdminRider } from "@/lib/admin/types";
+import type {
+  AdminPayment,
+  AdminPaymentTrendPoint,
+  AdminRide,
+  AdminDriver,
+  AdminRider,
+} from "@/lib/admin/types";
+
+function normalizeRideStatus(status: string): AdminRide["status"] {
+  const lowerStatus = status.toLowerCase();
+
+  if (
+    lowerStatus === "ongoing" ||
+    lowerStatus === "searching" ||
+    lowerStatus === "accepted" ||
+    lowerStatus === "arriving" ||
+    lowerStatus === "in_progress"
+  ) {
+    return "ongoing";
+  }
+
+  if (lowerStatus === "completed") {
+    return "completed";
+  }
+
+  return "cancelled";
+}
 
 // ── Riders ────────────────────────────────────────────────────────────────
 
@@ -25,12 +51,35 @@ export async function fetchAdminOverview() {
   return res.data;
 }
 
-export async function fetchDrivers() {
-  const res = await axiosClient.get("/admin/drivers");
-  return res.data;
+export async function fetchDrivers(): Promise<AdminDriver[]> {
+  const res = await axiosClient.get<AdminDriver[] | { data: AdminDriver[] }>(
+    "/admin/captains",
+  );
+  return Array.isArray(res.data) ? res.data : res.data.data;
 }
 
-export async function fetchRides() {
-  const res = await axiosClient.get("/admin/rides");
-  return res.data;
+export async function fetchRides(): Promise<AdminRide[]> {
+  const res = await axiosClient.get<AdminRide[] | { data: AdminRide[] }>(
+    "/admin/rides",
+  );
+  const rides = Array.isArray(res.data) ? res.data : res.data.data;
+
+  return rides.map((ride) => ({
+    ...ride,
+    status: normalizeRideStatus(String(ride.status)),
+  }));
+}
+
+export async function fetchPayments(): Promise<AdminPayment[]> {
+  const res = await axiosClient.get<AdminPayment[] | { data: AdminPayment[] }>(
+    "/admin/payments",
+  );
+  return Array.isArray(res.data) ? res.data : res.data.data;
+}
+
+export async function fetchPaymentsTrend(): Promise<AdminPaymentTrendPoint[]> {
+  const res = await axiosClient.get<
+    AdminPaymentTrendPoint[] | { data: AdminPaymentTrendPoint[] }
+  >("/admin/payments/trend");
+  return Array.isArray(res.data) ? res.data : res.data.data;
 }

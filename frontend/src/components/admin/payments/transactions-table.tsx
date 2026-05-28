@@ -1,60 +1,88 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import DataTable from "@/components/shared/dashboard/data-table";
 import StatusBadge from "@/components/shared/dashboard/status-badge";
-import { Button } from "@/components/ui/button";
-import { adminTransactions } from "@/lib/admin/mock-data";
-import type { AdminTransaction } from "@/lib/admin/types";
-import { cn } from "@/lib/utils";
+import { fetchPayments } from "@/services/admin/admin.service";
+import type { AdminPayment } from "@/lib/admin/types";
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
 export default function TransactionsTable() {
-  const columns = useMemo<ColumnDef<AdminTransaction>[]>(
+  const [payments, setPayments] = useState<AdminPayment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadPayments = async () => {
+      try {
+        const data = await fetchPayments();
+        setPayments(data);
+      } catch (error) {
+        console.error("Failed to load payments:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPayments();
+  }, []);
+
+  const columns = useMemo<ColumnDef<AdminPayment>[]>(
     () => [
-      { accessorKey: "id", header: "ID" },
+      { accessorKey: "rideId", header: "Ride ID" },
+      { accessorKey: "riderName", header: "Rider" },
+      { accessorKey: "driverName", header: "Driver" },
       {
-        accessorKey: "type",
-        header: "Type",
+        accessorKey: "tripAmount",
+        header: "Trip Amount",
         cell: ({ row }) => (
-          <span className="capitalize">{row.original.type}</span>
-        ),
-      },
-      { accessorKey: "party", header: "Party" },
-      {
-        accessorKey: "amount",
-        header: "Amount",
-        cell: ({ row }) => (
-          <span
-            className={cn(
-              "font-medium",
-              row.original.type === "refund" ? "text-red-600" : "text-neutral-900",
-            )}
-          >
-            ₹{row.original.amount.toLocaleString("en-IN")}
+          <span className="font-medium text-neutral-900">
+            ₹{row.original.tripAmount.toLocaleString("en-IN")}
           </span>
         ),
+      },
+      {
+        accessorKey: "paymentMethod",
+        header: "Method",
+        cell: ({ row }) => (
+          <span className="capitalize">
+            {row.original.paymentMethod.toLowerCase()}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "completedAt",
+        header: "Completed At",
+        cell: ({ row }) => formatDate(row.original.completedAt),
       },
       {
         accessorKey: "status",
         header: "Status",
         cell: ({ row }) => <StatusBadge status={row.original.status} />,
       },
-      { accessorKey: "date", header: "Date" },
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) =>
-          row.original.type === "refund" && row.original.status === "pending" ? (
-            <Button size="sm" className="h-8 rounded-lg text-xs">
-              Process refund
-            </Button>
-          ) : null,
-      },
     ],
     [],
   );
 
-  return <DataTable columns={columns} data={adminTransactions} pageSize={8} />;
+  if (loading) {
+    return <div className="py-6 text-center text-sm text-neutral-500">Loading completed ride payments...</div>;
+  }
+
+  return (
+    <DataTable
+      columns={columns}
+      data={payments}
+      pageSize={8}
+      emptyMessage="No completed ride payments found."
+    />
+  );
 }

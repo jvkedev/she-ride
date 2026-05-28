@@ -81,16 +81,68 @@ export class DriverBehaviorService {
     });
   }
 
+  async getCaptainList() {
+    const captains = await this.prisma.captain.findMany({
+      include: {
+        user: true,
+        rides: {
+          where: { status: 'COMPLETED' },
+          select: { id: true },
+        },
+        _count: {
+          select: { rides: true },
+        },
+      },
+    });
+
+    const results = await Promise.all(
+      captains.map(async (captain) => {
+        const [total, highSeverity, aggressiveFlags] = await Promise.all([
+          this.prisma.driverBehaviorFlag.count({
+            where: { captainId: captain.id },
+          }),
+          this.prisma.driverBehaviorFlag.count({
+            where: { captainId: captain.id, severity: 'HIGH' },
+          }),
+          this.prisma.driverBehaviorFlag.count({
+            where: {
+              captainId: captain.id,
+              flagType: { in: ['AGGRESSIVE_DRIVING', 'SPEEDING'] },
+            },
+          }),
+        ]);
+
+        const safetyScore = Math.max(0, 100 - highSeverity * 10 - total * 2);
+
+        return {
+          captainId: captain.id,
+          name: captain.user.fullName,
+          phone: captain.user.phoneNumber,
+          isOnline: captain.isOnline,
+          totalTrips: captain.totalTrips,
+          totalFlags: total,
+          highSeverityFlags: highSeverity,
+          aggressiveFlags,
+          safetyScore,
+          rating: captain.rating,
+        };
+      }),
+    );
+
+    return results;
+  }
+
   async getCaptainBehaviorSummary(captainId: string) {
     const captain = await this.prisma.captain.findUnique({
       where: { id: captainId },
+      include: { user: true },
     });
     if (!captain) throw new NotFoundException('Captain not found');
 
     const [total, highSeverity, unreviewed, byType] = await Promise.all([
       this.prisma.driverBehaviorFlag.count({ where: { captainId } }),
       this.prisma.driverBehaviorFlag.count({
-        where: { captainId, severity: 'high' },
+        where: { captainId, severity: 'HIGH' },
       }),
       this.prisma.driverBehaviorFlag.count({
         where: { captainId, isReviewed: false },
@@ -102,7 +154,21 @@ export class DriverBehaviorService {
       }),
     ]);
 
-    return { captainId, total, highSeverity, unreviewed, byType };
+    const safetyScore = Math.max(0, 100 - highSeverity * 10 - total * 2);
+
+    return {
+      captainId,
+      name: captain.user.fullName,
+      phone: captain.user.phoneNumber,
+      rating: captain.rating,
+      totalTrips: captain.totalTrips,
+      isOnline: captain.isOnline,
+      safetyScore,
+      total,
+      highSeverity,
+      unreviewed,
+      byType,
+    };
   }
 
   async getBehaviorStats() {

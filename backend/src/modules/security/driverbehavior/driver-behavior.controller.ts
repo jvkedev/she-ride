@@ -42,6 +42,12 @@ export class DriverBehaviorController {
     return this.driverBehaviorService.getBehaviorStats();
   }
 
+  @Get('captains')
+  @Roles('SECURITY', 'ADMIN')
+  getCaptainList() {
+    return this.driverBehaviorService.getCaptainList();
+  }
+
   @Get()
   @Roles('SECURITY', 'ADMIN')
   getAll(

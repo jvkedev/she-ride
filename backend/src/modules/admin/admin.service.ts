@@ -474,4 +474,76 @@ export class AdminService {
       createdAt: ride.createdAt,
     }));
   }
+
+  // ── Payments ───────────────────────────────────────────────────────────
+
+  async getPayments() {
+    const payments = await this.prisma.ride.findMany({
+      where: { status: RideStatus.COMPLETED },
+      orderBy: { completedAt: 'desc' },
+      include: {
+        rider: { include: { user: { select: { fullName: true } } } },
+        captain: { include: { user: { select: { fullName: true } } } },
+      },
+    });
+
+    return payments.map((ride) => ({
+      id: ride.id,
+      rideId: ride.id,
+      riderName: ride.rider.user.fullName,
+      driverName: ride.captain?.user.fullName ?? 'Unassigned',
+      tripAmount: ride.finalFare ?? ride.estimatedFare ?? 0,
+      paymentMethod: ride.paymentMethod.toLowerCase(),
+      completedAt: ride.completedAt?.toISOString() ?? ride.createdAt.toISOString(),
+      status: 'completed',
+      pickup: ride.pickupAddress,
+      dropoff: ride.dropAddress,
+    }));
+  }
+
+  async getPaymentsTrend() {
+    const days: {
+      label: string;
+      tripAmount: number;
+      trips: number;
+    }[] = [];
+    const now = new Date();
+
+    for (let i = 6; i >= 0; i--) {
+      const start = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - i,
+      );
+      const end = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - i + 1,
+      );
+
+      const [agg, count] = await Promise.all([
+        this.prisma.ride.aggregate({
+          _sum: { finalFare: true },
+          where: {
+            status: RideStatus.COMPLETED,
+            completedAt: { gte: start, lt: end },
+          },
+        }),
+        this.prisma.ride.count({
+          where: {
+            status: RideStatus.COMPLETED,
+            completedAt: { gte: start, lt: end },
+          },
+        }),
+      ]);
+
+      days.push({
+        label: start.toLocaleString('en-IN', { weekday: 'short' }),
+        tripAmount: +(agg._sum.finalFare ?? 0).toFixed(2),
+        trips: count,
+      });
+    }
+
+    return days;
+  }
 }

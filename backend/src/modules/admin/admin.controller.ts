@@ -73,4 +73,14 @@ export class AdminController {
   getAllRides() {
     return this.adminService.getAllRides();
   }
+
+  @Get('payments')
+  getPayments() {
+    return this.adminService.getPayments();
+  }
+
+  @Get('payments/trend')
+  getPaymentsTrend() {
+    return this.adminService.getPaymentsTrend();
+  }
 }

@@ -1,0 +1,18 @@
+import {
+  IsBoolean,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
+
+export class AddNoteDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(2000)
+  content!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isInternal?: boolean;
+}

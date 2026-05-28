@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -12,6 +12,8 @@ import {
 
 export default function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const reason = searchParams.get("reason");
 
   const {
     register,
@@ -24,10 +26,8 @@ export default function LoginForm() {
   async function onSubmit(data: SendLoginOtpInput) {
     try {
       await apiRequest("/auth/login/send-otp", data);
-
       localStorage.setItem("authFlow", "login");
       localStorage.setItem("authPhoneNumber", data.phoneNumber);
-
       router.push("/verify-otp");
     } catch (error) {
       alert(error instanceof Error ? error.message : "Login failed");
@@ -40,6 +40,19 @@ export default function LoginForm() {
       className="mx-auto mt-20 max-w-md space-y-4"
     >
       <h1 className="text-2xl font-bold">Login</h1>
+
+      {/* ── Blocked account message ── */}
+      {reason === "blocked" && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+          Your account has been blocked. Please contact support.
+        </div>
+      )}
+
+      {reason === "session_expired" && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+          Your session has expired. Please log in again.
+        </div>
+      )}
 
       <input
         {...register("phoneNumber")}

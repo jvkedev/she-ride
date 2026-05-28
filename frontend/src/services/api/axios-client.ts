@@ -16,14 +16,29 @@ axiosClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const original = error.config;
+    const status = error.response?.status;
+    const message = error.response?.data?.message ?? "";
 
-    if (error.response?.status === 401 && !original._retry) {
+    // ── Blocked account ───────────────────────────────────────────
+    if (status === 403 && message.toLowerCase().includes("blocked")) {
+      logout();
+      if (typeof window !== "undefined") {
+        window.location.href = "/login?reason=blocked";
+      }
+      return Promise.reject(error);
+    }
+
+    // ── Token expired — try refresh ───────────────────────────────
+    if (status === 401 && !original._retry) {
       original._retry = true;
 
       const newToken = await refreshAccessToken();
 
       if (!newToken) {
         logout();
+        if (typeof window !== "undefined") {
+          window.location.href = "/login?reason=session_expired";
+        }
         return Promise.reject(error);
       }
 

@@ -1,7 +1,8 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 
 import RideDetailDrawer from "@/components/admin/rides/ride-detail-drawer";
 import DataTable from "@/components/shared/dashboard/data-table";
@@ -11,31 +12,55 @@ import { Button } from "@/components/ui/button";
 import { useAdminFilters } from "@/hooks/admin/use-admin-filters";
 import { RIDE_STATUS_FILTERS } from "@/lib/admin/constants";
 import type { AdminRide } from "@/lib/admin/types";
+import { fetchRides } from "@/services/admin/admin.service";
+
+function ErrorState({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-xl border border-red-100 bg-red-50 py-12">
+      <AlertTriangle className="size-5 text-red-400" />
+      <p className="text-sm text-red-600">{message}</p>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={onRetry}
+        className="gap-1.5 text-xs"
+      >
+        <RefreshCw className="size-3.5" /> Retry
+      </Button>
+    </div>
+  );
+}
 
 export default function RidesTable() {
   const [rides, setRides] = useState<AdminRide[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedRide, setSelectedRide] = useState<AdminRide | null>(null);
 
-  useEffect(() => {
-    const fetchRides = async () => {
-      try {
-        const apiUrl =
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-        const response = await fetch(`${apiUrl}/admin/rides`);
-        if (response.ok) {
-          const data = await response.json();
-          setRides(data);
-        }
-      } catch (error) {
-        console.error("Error fetching rides:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const loadRides = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
-    fetchRides();
+    try {
+      const data = await fetchRides();
+      setRides(data);
+    } catch (loadError) {
+      console.error("Error fetching rides:", loadError);
+      setError("Failed to load rides. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadRides();
+  }, [loadRides]);
 
   const { search, setSearch, statusFilter, setStatusFilter, filtered } =
     useAdminFilters(rides, {
@@ -52,7 +77,7 @@ export default function RidesTable() {
         accessorKey: "pickup",
         header: "Route",
         cell: ({ row }) => (
-          <span className="max-w-[200px] truncate text-xs">
+          <span className="max-w-50 truncate text-xs">
             {row.original.pickup} → {row.original.dropoff}
           </span>
         ),
@@ -100,7 +125,16 @@ export default function RidesTable() {
           filterValue={statusFilter}
           onFilterChange={setStatusFilter}
         />
-        <DataTable columns={columns} data={filtered} pageSize={8} />
+        {error ? (
+          <ErrorState message={error} onRetry={loadRides} />
+        ) : (
+          <DataTable
+            columns={columns}
+            data={filtered}
+            pageSize={8}
+            emptyMessage="No rides found."
+          />
+        )}
       </div>
       <RideDetailDrawer
         ride={selectedRide}

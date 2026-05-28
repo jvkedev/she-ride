@@ -55,6 +55,25 @@ export type AdminTransaction = {
   date: string;
 };
 
+export type AdminPayment = {
+  id: string;
+  rideId: string;
+  riderName: string;
+  driverName: string;
+  tripAmount: number;
+  paymentMethod: string;
+  completedAt: string;
+  status: "completed";
+  pickup: string;
+  dropoff: string;
+};
+
+export type AdminPaymentTrendPoint = {
+  label: string;
+  tripAmount: number;
+  trips: number;
+};
+
 export type AdminTicket = {
   id: string;
   subject: string;

@@ -137,4 +137,14 @@ export class AccountSecurityService {
 
     return { totalFlagged, pendingReview, blocked };
   }
+
+  async getAssignees() {
+    return this.prisma.user.findMany({
+      where: {
+        role: { in: ['SECURITY', 'ADMIN'] },
+        accountStatus: 'ACTIVE',
+      },
+      select: { id: true, fullName: true, role: true },
+    });
+  }
 }

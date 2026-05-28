@@ -67,6 +67,12 @@ export class AccountSecurityController {
     return this.accountService.resolveFlag(id, req.user.id, body.notes);
   }
 
+  @Get('assignees')
+  @Roles('SECURITY', 'ADMIN')
+  getAssignees() {
+    return this.accountService.getAssignees();
+  }
+
   @Patch('user/:userId/block')
   @Roles('SECURITY', 'ADMIN')
   block(@Param('userId') userId: string, @Request() req) {

@@ -9,7 +9,7 @@ export const DRIVER_STATUS_FILTERS: FilterOption[] = [
 
 export const RIDE_STATUS_FILTERS: FilterOption[] = [
   { label: "All rides", value: "all" },
-  { label: "In progress", value: "in_progress" },
+  { label: "Ongoing", value: "ongoing" },
   { label: "Completed", value: "completed" },
   { label: "Cancelled", value: "cancelled" },
 ];

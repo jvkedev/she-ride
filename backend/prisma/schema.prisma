@@ -153,6 +153,21 @@ enum IncidentStatus {
   INVESTIGATING
   RESOLVED
   CLOSED
+  REJECTED
+}
+
+enum IncidentPriority {
+  P1 // Critical — respond in 2 min
+  P2 // High — respond in 10 min
+  P3 // Medium — respond in 1 hour
+  P4 // Low — respond in 24 hours
+}
+
+enum IncidentSource {
+  APP
+  SOS_AUTO
+  ADMIN_MANUAL
+  SYSTEM
 }
 
 enum RiskLevel {
@@ -188,6 +203,9 @@ enum AuditAction {
   RISK_ZONE_ADDED
   RISK_ZONE_REMOVED
   EMERGENCY_DISPATCHED
+  INCIDENT_ASSIGNED
+  INCIDENT_STATUS_CHANGED
+  INCIDENT_NOTE_ADDED
 }
 
 
@@ -217,6 +235,10 @@ model User {
   fraudSignals      FraudSignal[]
   suspiciousAccount SuspiciousAccount?
   reportedIncidents Incident[]         @relation("IncidentReporter")
+
+  assignedIncidents  Incident[]        @relation("IncidentAssignee")
+incidentNotes      IncidentNote[]    @relation("NoteAuthor")
+uploadedEvidence   IncidentEvidence[] @relation("EvidenceUploader")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -559,39 +581,104 @@ model FraudSignal {
   @@map("fraud_signals")
 }
 
+
 model Incident {
-  id String @id @default(cuid())
+  id             String           @id @default(cuid())
+  incidentNumber String           @unique
 
-  reportedBy String
-  user       User   @relation("IncidentReporter", fields: [reportedBy], references: [id])
+  reportedBy     String
+  user           User             @relation("IncidentReporter", fields: [reportedBy], references: [id])
+  reporterRole   UserRole
 
-  rideId String?
-  ride   Ride?   @relation(fields: [rideId], references: [id])
+  rideId         String?
+  ride           Ride?            @relation(fields: [rideId], references: [id])
 
-  incidentType IncidentType
-  severity     IncidentSeverity
-  status       IncidentStatus   @default(OPEN)
+  incidentType   IncidentType
+  severity       IncidentSeverity
+  priority       IncidentPriority @default(P3)
+  source         IncidentSource   @default(APP)
+  status         IncidentStatus   @default(OPEN)
 
-  description String
-  evidence    Json?
+  description    String
+  evidence       IncidentEvidence[]
 
-  latitude   Float?
-  longitude  Float?
-  address    String?
+  latitude       Float?
+  longitude      Float?
+  address        String?
 
   assignedTo     String?
+  assignedUser   User?            @relation("IncidentAssignee", fields: [assignedTo], references: [id])
   assignedAt     DateTime?
+
   resolvedAt     DateTime?
-  resolutionNote String?
+  resolvedBy     String?
+  closedAt       DateTime?
 
-  auditLogs AuditLog[]
+  firstResponseAt DateTime?
+  slaDeadline     DateTime?
+  slaBreachedAt   DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  duplicateOf    String?
+  parentIncident Incident?        @relation("IncidentDuplicates", fields: [duplicateOf], references: [id])
+  duplicates     Incident[]       @relation("IncidentDuplicates")
+
+  deletedAt      DateTime?
+  tags           String[]
+
+  notes          IncidentNote[]
+  auditLogs      AuditLog[]
+
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
   @@index([status])
   @@index([severity])
+  @@index([priority])
+  @@index([severity, createdAt])
+  @@index([reportedBy])
+  @@index([assignedTo])
+  @@index([incidentNumber])
   @@map("incidents")
+}
+
+model IncidentNote {
+  id         String   @id @default(cuid())
+
+  incidentId String
+  incident   Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  authorId   String
+  author     User     @relation("NoteAuthor", fields: [authorId], references: [id])
+
+  content    String
+  isInternal Boolean  @default(true)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([incidentId])
+  @@map("incident_notes")
+}
+
+model IncidentEvidence {
+  id         String   @id @default(cuid())
+
+  incidentId String
+  incident   Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  uploadedBy String
+  uploader   User     @relation("EvidenceUploader", fields: [uploadedBy], references: [id])
+
+  fileUrl    String
+  fileType   String
+  fileName   String
+  fileSizeKb Int
+  fileHash   String
+
+  uploadedAt DateTime @default(now())
+
+  @@index([incidentId])
+  @@map("incident_evidence")
 }
 
 model SuspiciousAccount {
@@ -681,6 +768,12 @@ model AuditLog {
 
   incidentId          String?
   incident            Incident?          @relation(fields: [incidentId], references: [id])
+
+ipAddress    String?
+userAgent    String?
+previousData Json?
+newData      Json?
+channel      String?
 
   suspiciousAccountId String?
   suspiciousAccount   SuspiciousAccount? @relation(fields: [suspiciousAccountId], references: [id])

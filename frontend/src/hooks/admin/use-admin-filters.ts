@@ -1,7 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react"
-import { adminRiders } from "@/lib/admin/mock-data";;
+import { useMemo, useState } from "react";
 
 export function useAdminFilters<T extends object>(
   items: T[],
@@ -9,7 +8,13 @@ export function useAdminFilters<T extends object>(
     searchKeys: (keyof T)[];
     statusKey?: keyof T;
   },
-) {
+): {
+  search: string;
+  setSearch: (v: string) => void;
+  statusFilter: string;
+  setStatusFilter: (v: string) => void;
+  filtered: T[];
+} {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
@@ -35,11 +40,5 @@ export function useAdminFilters<T extends object>(
     return result;
   }, [items, search, statusFilter, options.searchKeys, options.statusKey]);
 
-  return {
-    search,
-    setSearch,
-    statusFilter,
-    setStatusFilter,
-    filtered,
-  };
+  return { search, setSearch, statusFilter, setStatusFilter, filtered };
 }
