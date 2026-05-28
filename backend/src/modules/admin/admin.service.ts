@@ -10,7 +10,11 @@ export class AdminService {
 
   async getDashboardStats() {
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
@@ -41,7 +45,12 @@ export class AdminService {
       this.prisma.ride.count({
         where: {
           status: {
-            in: [RideStatus.SEARCHING, RideStatus.ACCEPTED, RideStatus.ARRIVING, RideStatus.IN_PROGRESS],
+            in: [
+              RideStatus.SEARCHING,
+              RideStatus.ACCEPTED,
+              RideStatus.ARRIVING,
+              RideStatus.IN_PROGRESS,
+            ],
           },
         },
       }),
@@ -91,13 +100,14 @@ export class AdminService {
 
     const revenueGrowth =
       revenueLastMonth > 0
-        ? (((revenueThisMonth - revenueLastMonth) / revenueLastMonth) * 100).toFixed(1)
+        ? (
+            ((revenueThisMonth - revenueLastMonth) / revenueLastMonth) *
+            100
+          ).toFixed(1)
         : null;
 
     const completionRate =
-      totalRides > 0
-        ? ((completedRides / totalRides) * 100).toFixed(1)
-        : '0.0';
+      totalRides > 0 ? ((completedRides / totalRides) * 100).toFixed(1) : '0.0';
 
     return {
       overview: {
@@ -123,7 +133,7 @@ export class AdminService {
         completionRate: +completionRate,
         cancellationRate:
           totalRides > 0
-            ? +(((cancelledRides / totalRides) * 100).toFixed(1))
+            ? +((cancelledRides / totalRides) * 100).toFixed(1)
             : 0,
       },
     };
@@ -137,7 +147,14 @@ export class AdminService {
 
     for (let i = 5; i >= 0; i--) {
       const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
+      const end = new Date(
+        now.getFullYear(),
+        now.getMonth() - i + 1,
+        0,
+        23,
+        59,
+        59,
+      );
 
       const [agg, count] = await Promise.all([
         this.prisma.ride.aggregate({
@@ -156,7 +173,10 @@ export class AdminService {
       ]);
 
       months.push({
-        label: start.toLocaleString('en-IN', { month: 'short', year: '2-digit' }),
+        label: start.toLocaleString('en-IN', {
+          month: 'short',
+          year: '2-digit',
+        }),
         revenue: +(agg._sum.finalFare ?? 0).toFixed(2),
         rides: count,
       });
@@ -168,20 +188,41 @@ export class AdminService {
   // ── Rides per day — last 7 days ──────────────────────────────────────────
 
   async getRideTrends() {
-    const days: { label: string; total: number; completed: number; cancelled: number }[] = [];
+    const days: {
+      label: string;
+      total: number;
+      completed: number;
+      cancelled: number;
+    }[] = [];
     const now = new Date();
 
     for (let i = 6; i >= 0; i--) {
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i + 1);
+      const start = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - i,
+      );
+      const end = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - i + 1,
+      );
 
       const [total, completed, cancelled] = await Promise.all([
-        this.prisma.ride.count({ where: { createdAt: { gte: start, lt: end } } }),
         this.prisma.ride.count({
-          where: { status: RideStatus.COMPLETED, createdAt: { gte: start, lt: end } },
+          where: { createdAt: { gte: start, lt: end } },
         }),
         this.prisma.ride.count({
-          where: { status: RideStatus.CANCELED, createdAt: { gte: start, lt: end } },
+          where: {
+            status: RideStatus.COMPLETED,
+            createdAt: { gte: start, lt: end },
+          },
+        }),
+        this.prisma.ride.count({
+          where: {
+            status: RideStatus.CANCELED,
+            createdAt: { gte: start, lt: end },
+          },
         }),
       ]);
 
@@ -360,5 +401,77 @@ export class AdminService {
       data: { accountStatus: AccountStatus.ACTIVE },
     });
     return { success: true, message: 'Rider unblocked successfully' };
+  }
+
+  // ── Captains/Drivers list ────────────────────────────────────────────────
+
+  async getCaptains() {
+    const captains = await this.prisma.captain.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: {
+          select: {
+            fullName: true,
+            phoneNumber: true,
+            accountStatus: true,
+          },
+        },
+        vehicle: {
+          select: {
+            vehicleType: true,
+            vehicleNumber: true,
+            brand: true,
+            model: true,
+          },
+        },
+        document: {
+          select: {
+            documentStatus: true,
+          },
+        },
+      },
+    });
+
+    return captains.map((captain) => ({
+      id: captain.id,
+      name: captain.user.fullName,
+      phone: captain.user.phoneNumber,
+      vehicle: captain.vehicle
+        ? `${captain.vehicle.brand} ${captain.vehicle.model}`
+        : 'N/A',
+      vehicleType: captain.vehicle?.vehicleType ?? 'AUTO',
+      plate: captain.vehicle?.vehicleNumber ?? '—',
+      rating: captain.rating,
+      trips: captain.totalTrips,
+      status: captain.isOnline
+        ? 'online'
+        : captain.user.accountStatus.toLowerCase(),
+      kycStatus: captain.document?.documentStatus.toLowerCase() ?? 'pending',
+      joinedAt: captain.createdAt,
+    }));
+  }
+
+  // ── All Rides list ──────────────────────────────────────────────────────
+
+  async getAllRides() {
+    const rides = await this.prisma.ride.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        rider: { include: { user: { select: { fullName: true } } } },
+        captain: { include: { user: { select: { fullName: true } } } },
+      },
+    });
+
+    return rides.map((ride) => ({
+      id: ride.id,
+      riderName: ride.rider.user.fullName,
+      driverName: ride.captain?.user.fullName ?? 'Unassigned',
+      pickup: ride.pickupAddress,
+      dropoff: ride.dropAddress,
+      fare: ride.finalFare ?? ride.estimatedFare ?? 0,
+      distance: ride.distanceInKm ? `${ride.distanceInKm.toFixed(1)} km` : '—',
+      status: ride.status.toLowerCase(),
+      createdAt: ride.createdAt,
+    }));
   }
 }

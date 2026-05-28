@@ -1,7 +1,7 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import RideDetailDrawer from "@/components/admin/rides/ride-detail-drawer";
 import DataTable from "@/components/shared/dashboard/data-table";
@@ -10,13 +10,35 @@ import StatusBadge from "@/components/shared/dashboard/status-badge";
 import { Button } from "@/components/ui/button";
 import { useAdminFilters } from "@/hooks/admin/use-admin-filters";
 import { RIDE_STATUS_FILTERS } from "@/lib/admin/constants";
-import { adminRides } from "@/lib/admin/mock-data";
 import type { AdminRide } from "@/lib/admin/types";
 
 export default function RidesTable() {
+  const [rides, setRides] = useState<AdminRide[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedRide, setSelectedRide] = useState<AdminRide | null>(null);
+
+  useEffect(() => {
+    const fetchRides = async () => {
+      try {
+        const apiUrl =
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+        const response = await fetch(`${apiUrl}/admin/rides`);
+        if (response.ok) {
+          const data = await response.json();
+          setRides(data);
+        }
+      } catch (error) {
+        console.error("Error fetching rides:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRides();
+  }, []);
+
   const { search, setSearch, statusFilter, setStatusFilter, filtered } =
-    useAdminFilters(adminRides, {
+    useAdminFilters(rides, {
       searchKeys: ["id", "riderName", "driverName", "pickup", "dropoff"],
       statusKey: "status",
     });
@@ -62,6 +84,10 @@ export default function RidesTable() {
     ],
     [],
   );
+
+  if (loading) {
+    return <div className="text-center py-8">Loading rides...</div>;
+  }
 
   return (
     <>

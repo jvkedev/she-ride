@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import DataTable from "@/components/shared/dashboard/data-table";
 import SearchToolbar from "@/components/shared/dashboard/search-toolbar";
@@ -10,7 +10,6 @@ import StatusBadge from "@/components/shared/dashboard/status-badge";
 import { Button } from "@/components/ui/button";
 import { useAdminFilters } from "@/hooks/admin/use-admin-filters";
 import { DRIVER_STATUS_FILTERS } from "@/lib/admin/constants";
-import { adminDrivers } from "@/lib/admin/mock-data";
 import type { AdminDriver } from "@/lib/admin/types";
 
 type DriversTableProps = {
@@ -18,9 +17,35 @@ type DriversTableProps = {
   onReject?: (id: string) => void;
 };
 
-export default function DriversTable({ onApprove, onReject }: DriversTableProps) {
+export default function DriversTable({
+  onApprove,
+  onReject,
+}: DriversTableProps) {
+  const [drivers, setDrivers] = useState<AdminDriver[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDrivers = async () => {
+      try {
+        const apiUrl =
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+        const response = await fetch(`${apiUrl}/admin/captains`);
+        if (response.ok) {
+          const data = await response.json();
+          setDrivers(data);
+        }
+      } catch (error) {
+        console.error("Error fetching drivers:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDrivers();
+  }, []);
+
   const { search, setSearch, statusFilter, setStatusFilter, filtered } =
-    useAdminFilters(adminDrivers, {
+    useAdminFilters(drivers, {
       searchKeys: ["name", "phone", "vehicle", "plate"],
       statusKey: "kycStatus",
     });
@@ -83,7 +108,11 @@ export default function DriversTable({ onApprove, onReject }: DriversTableProps)
             </div>
           ) : (
             <Link href={`/admin/drivers/${row.original.id}`}>
-              <Button size="sm" variant="outline" className="h-8 rounded-lg text-xs">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 rounded-lg text-xs"
+              >
                 View
               </Button>
             </Link>
@@ -92,6 +121,10 @@ export default function DriversTable({ onApprove, onReject }: DriversTableProps)
     ],
     [onApprove, onReject],
   );
+
+  if (loading) {
+    return <div className="text-center py-8">Loading drivers...</div>;
+  }
 
   return (
     <div className="space-y-4">

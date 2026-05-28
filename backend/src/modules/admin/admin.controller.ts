@@ -59,4 +59,18 @@ export class AdminController {
   unblockRider(@Param('id') id: string) {
     return this.adminService.unblockRider(id);
   }
+
+  // ── Captains/Drivers ──────────────────────────────────────────────────────
+
+  @Get('captains')
+  getCaptains() {
+    return this.adminService.getCaptains();
+  }
+
+  // ── Rides ─────────────────────────────────────────────────────────────────
+
+  @Get('rides')
+  getAllRides() {
+    return this.adminService.getAllRides();
+  }
 }
