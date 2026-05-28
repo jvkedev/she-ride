@@ -1,5 +1,6 @@
 import axiosClient from "@/services/api/axios-client";
 import type {
+  AdminDriverDetail,
   AdminPayment,
   AdminPaymentTrendPoint,
   AdminRide,
@@ -56,6 +57,29 @@ export async function fetchDrivers(): Promise<AdminDriver[]> {
     "/admin/captains",
   );
   return Array.isArray(res.data) ? res.data : res.data.data;
+}
+
+export async function fetchDriverById(
+  captainId: string,
+): Promise<AdminDriverDetail> {
+  const res = await axiosClient.get<
+    AdminDriverDetail | { data: AdminDriverDetail }
+  >(`/admin/captains/${captainId}`);
+  return "data" in res.data ? res.data.data : res.data;
+}
+
+export async function updateDriverKyc(
+  captainId: string,
+  body: {
+    status: "APPROVED" | "REJECTED";
+    documentKey?: "driving_license" | "rc_registration" | "aadhaar" | "selfie";
+    rejectionReason?: string;
+  },
+): Promise<AdminDriverDetail> {
+  const res = await axiosClient.patch<
+    AdminDriverDetail | { data: AdminDriverDetail }
+  >(`/admin/captains/${captainId}/document`, body);
+  return "data" in res.data ? res.data.data : res.data;
 }
 
 export async function fetchRides(): Promise<AdminRide[]> {

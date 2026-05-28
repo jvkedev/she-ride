@@ -3,12 +3,14 @@ import {
   Get,
   Patch,
   Param,
+  Body,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AdminService } from './admin.service';
+import { UpdateCaptainDocumentDto } from './dto/update-captain-document.dto';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard)
@@ -65,6 +67,19 @@ export class AdminController {
   @Get('captains')
   getCaptains() {
     return this.adminService.getCaptains();
+  }
+
+  @Get('captains/:id')
+  async getCaptainById(@Param('id') id: string) {
+    return this.adminService.getCaptainById(id);
+  }
+
+  @Patch('captains/:id/document')
+  updateCaptainDocument(
+    @Param('id') id: string,
+    @Body() dto: UpdateCaptainDocumentDto,
+  ) {
+    return this.adminService.updateCaptainDocument(id, dto);
   }
 
   // ── Rides ─────────────────────────────────────────────────────────────────

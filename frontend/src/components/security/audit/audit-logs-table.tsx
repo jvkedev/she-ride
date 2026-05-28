@@ -41,12 +41,23 @@ function LoadingState() {
   );
 }
 
-function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+function ErrorState({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-xl border border-red-100 bg-red-50 py-12">
       <AlertTriangle className="size-5 text-red-400" />
       <p className="text-sm text-red-600">{message}</p>
-      <Button size="sm" variant="outline" onClick={onRetry} className="gap-1.5 text-xs">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={onRetry}
+        className="gap-1.5 text-xs"
+      >
         <RefreshCw className="size-3.5" />
         Retry
       </Button>
@@ -73,7 +84,9 @@ export default function AuditLogsTable() {
   const handleExportCsv = () => {
     if (data.length === 0) return;
 
-    const blob = new Blob([buildCsv(data)], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob([buildCsv(data)], {
+      type: "text/csv;charset=utf-8;",
+    });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -93,7 +106,7 @@ export default function AuditLogsTable() {
           const timestamp = row.original.timestamp;
           const [datePart, timePart] = timestamp.split(", ");
           return (
-            <div className="min-w-[150px]">
+            <div className="min-w-37.5">
               <div className="font-medium text-neutral-900">{datePart}</div>
               <div className="mt-0.5 text-xs text-neutral-500">{timePart}</div>
             </div>
@@ -109,7 +122,9 @@ export default function AuditLogsTable() {
               {row.original.actor}
             </div>
             <div className="mt-0.5 text-xs text-neutral-500">
-              {row.original.entityType ? row.original.entityType.toUpperCase() : "UNKNOWN"}
+              {row.original.entityType
+                ? row.original.entityType.toUpperCase()
+                : "UNKNOWN"}
             </div>
           </div>
         ),
@@ -127,7 +142,10 @@ export default function AuditLogsTable() {
         accessorKey: "target",
         header: "Target",
         cell: ({ row }) => (
-          <div className="max-w-[280px] truncate font-mono text-sm text-neutral-900" title={row.original.target}>
+          <div
+            className="max-w-70 truncate font-mono text-sm text-neutral-900"
+            title={row.original.target}
+          >
             {row.original.target}
           </div>
         ),
@@ -160,7 +178,9 @@ export default function AuditLogsTable() {
   return (
     <div className="space-y-4">
       <div className="px-1">
-        <h3 className="text-sm font-semibold text-neutral-900">Audit activity</h3>
+        <h3 className="text-sm font-semibold text-neutral-900">
+          Audit activity
+        </h3>
         <p className="text-xs text-neutral-500">
           Review who did what, when, and from where.
         </p>
@@ -187,11 +207,7 @@ export default function AuditLogsTable() {
       ) : error ? (
         <ErrorState message={error} onRetry={refetch} />
       ) : (
-        <DataTable
-          columns={columns}
-          data={data}
-          className="shadow-none"
-        />
+        <DataTable columns={columns} data={data} className="shadow-none" />
       )}
 
       <div className="flex items-center justify-between px-2 pt-2">

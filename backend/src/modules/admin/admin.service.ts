@@ -451,6 +451,150 @@ export class AdminService {
     }));
   }
 
+  async getCaptainById(captainId: string) {
+    const captain = await this.prisma.captain.findUnique({
+      where: { id: captainId },
+      include: {
+        user: {
+          select: {
+            fullName: true,
+            phoneNumber: true,
+            accountStatus: true,
+            email: true,
+            createdAt: true,
+          },
+        },
+        vehicle: {
+          select: {
+            vehicleType: true,
+            vehicleNumber: true,
+            brand: true,
+            model: true,
+          },
+        },
+        document: {
+          select: {
+            documentStatus: true,
+            rejectionReason: true,
+            aadhaarNumber: true,
+            drivingLicenseNumber: true,
+            aadhaarFrontImage: true,
+            aadhaarBackImage: true,
+            drivingLicenseImage: true,
+            rcImage: true,
+            selfieImage: true,
+            uploadedAt: true,
+            verifiedAt: true,
+            updatedAt: true,
+          },
+        },
+      },
+    });
+
+    if (!captain) {
+      return null;
+    }
+
+    return {
+      id: captain.id,
+      name: captain.user.fullName,
+      email: captain.user.email,
+      phone: captain.user.phoneNumber,
+      vehicle: captain.vehicle
+        ? `${captain.vehicle.brand} ${captain.vehicle.model}`
+        : 'N/A',
+      vehicleType: captain.vehicle?.vehicleType ?? 'AUTO',
+      plate: captain.vehicle?.vehicleNumber ?? '—',
+      rating: captain.rating,
+      trips: captain.totalTrips,
+      status: captain.isOnline
+        ? 'online'
+        : captain.user.accountStatus.toLowerCase(),
+      documentStatus:
+        captain.document?.documentStatus.toLowerCase() ?? 'pending',
+      rejectionReason: captain.document?.rejectionReason ?? null,
+      joinedAt: captain.createdAt,
+      documents: [
+        {
+          key: 'driving_license',
+          label: 'Driving license',
+          number: captain.document?.drivingLicenseNumber ?? null,
+          imageUrl: captain.document?.drivingLicenseImage ?? null,
+          status: captain.document?.documentStatus.toLowerCase() ?? 'pending',
+        },
+        {
+          key: 'rc_registration',
+          label: 'RC / Registration',
+          number: captain.vehicle?.vehicleNumber ?? null,
+          imageUrl: captain.document?.rcImage ?? null,
+          status: captain.document?.documentStatus.toLowerCase() ?? 'pending',
+        },
+        {
+          key: 'aadhaar',
+          label: 'Aadhaar',
+          number: captain.document?.aadhaarNumber ?? null,
+          imageUrl: captain.document?.aadhaarFrontImage ?? null,
+          status: captain.document?.documentStatus.toLowerCase() ?? 'pending',
+        },
+        {
+          key: 'selfie',
+          label: 'Selfie verification',
+          number: null,
+          imageUrl: captain.document?.selfieImage ?? null,
+          status: captain.document?.documentStatus.toLowerCase() ?? 'pending',
+        },
+      ],
+    };
+  }
+
+  async updateCaptainDocument(
+    captainId: string,
+    dto: { status: DocumentStatus; rejectionReason?: string },
+  ) {
+    const captain = await this.prisma.captain.findUnique({
+      where: { id: captainId },
+      include: {
+        user: {
+          select: {
+            fullName: true,
+            phoneNumber: true,
+            accountStatus: true,
+            email: true,
+            createdAt: true,
+          },
+        },
+        vehicle: {
+          select: {
+            vehicleType: true,
+            vehicleNumber: true,
+            brand: true,
+            model: true,
+          },
+        },
+        document: true,
+      },
+    });
+
+    if (!captain || !captain.document) {
+      return null;
+    }
+
+    await this.prisma.captainDocument.update({
+      where: { captainId },
+      data: {
+        documentStatus: dto.status,
+        rejectionReason:
+          dto.status === DocumentStatus.REJECTED
+            ? dto.rejectionReason ?? 'Document rejected by security review'
+            : null,
+        verifiedAt:
+          dto.status === DocumentStatus.APPROVED ? new Date() : captain.document.verifiedAt,
+      },
+    });
+
+    return this.getCaptainById(captainId);
+  }
+
   // ── All Rides list ──────────────────────────────────────────────────────
 
   async getAllRides() {

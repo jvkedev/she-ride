@@ -48,7 +48,7 @@ function ErrorState({
   );
 }
 
-export default function AdminDriverDetailPage() {
+export default function SecurityDriverDetailPage() {
   const params = useParams<{ id: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
 
@@ -127,7 +127,7 @@ export default function AdminDriverDetailPage() {
         description="Unable to load this driver."
         actions={
           <Button variant="outline" className="rounded-lg" asChild>
-            <Link href="/admin/drivers">Back to drivers</Link>
+            <Link href="/security/verification/drivers">Back to drivers</Link>
           </Button>
         }
         wide
@@ -145,7 +145,7 @@ export default function AdminDriverDetailPage() {
       )}`}
       actions={
         <Button variant="outline" className="rounded-lg" asChild>
-          <Link href="/admin/drivers">Back to drivers</Link>
+          <Link href="/security/verification/drivers">Back to drivers</Link>
         </Button>
       }
       wide

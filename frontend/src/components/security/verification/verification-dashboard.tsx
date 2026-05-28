@@ -167,7 +167,9 @@ export default function VerificationDashboard() {
                 Reject
               </Button>
               <Button variant="ghost" className="h-9 rounded-lg" asChild>
-                <Link href={`/admin/drivers/${driver.id}`}>Details</Link>
+                <Link href={`/security/verification/drivers/${driver.id}`}>
+                  Details
+                </Link>
               </Button>
             </div>
           </SurfaceCard>

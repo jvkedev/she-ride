@@ -3,6 +3,7 @@ import type { DashboardStatus } from "@/components/shared/dashboard/status-badge
 export type AdminDriver = {
   id: string;
   name: string;
+  email?: string;
   phone: string;
   vehicle: string;
   plate: string;
@@ -11,6 +12,20 @@ export type AdminDriver = {
   status: DashboardStatus;
   kycStatus: DashboardStatus;
   joinedAt: string;
+};
+
+export type AdminDriverDocument = {
+  key: "driving_license" | "rc_registration" | "aadhaar" | "selfie";
+  label: string;
+  number?: string | null;
+  imageUrl?: string | null;
+  status: DashboardStatus;
+};
+
+export type AdminDriverDetail = AdminDriver & {
+  documentStatus: DashboardStatus;
+  rejectionReason?: string | null;
+  documents: AdminDriverDocument[];
 };
 
 export type AdminRider = {

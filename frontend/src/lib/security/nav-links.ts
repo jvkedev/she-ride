@@ -6,7 +6,6 @@ import {
   Fingerprint,
   LayoutDashboard,
   Map,
-  Radio,
   Shield,
   ShieldAlert,
   UserX,
@@ -24,19 +23,25 @@ export const securityNavLinks: SecurityNavLink[] = [
   { label: "SOS Center", href: "/security/sos", icon: ShieldAlert },
   { label: "Live Surveillance", href: "/security/surveillance", icon: Map },
   { label: "Fraud Detection", href: "/security/fraud", icon: Fingerprint },
-  { label: "Driver Verification", href: "/security/verification", icon: Shield },
+  {
+    label: "Driver Verification",
+    href: "/security/verification",
+    icon: Shield,
+  },
   { label: "Incidents", href: "/security/incidents", icon: AlertTriangle },
   { label: "Account Security", href: "/security/accounts", icon: Users },
   { label: "Risk Zones", href: "/security/zones", icon: Map },
   { label: "Driver Behavior", href: "/security/behavior", icon: UserX },
   { label: "Audit Logs", href: "/security/audit", icon: ClipboardList },
-  { label: "Emergency Response", href: "/security/emergency", icon: Radio },
 ];
 
 export const securityMobileNavLinks = securityNavLinks.filter((link) =>
-  ["/security", "/security/sos", "/security/surveillance", "/security/emergency"].includes(
-    link.href,
-  ),
+  [
+    "/security",
+    "/security/sos",
+    "/security/surveillance",
+    "/security/emergency",
+  ].includes(link.href),
 );
 
 export const MAP_LAYOUT_ROUTES = ["/security/surveillance", "/security/sos"];
