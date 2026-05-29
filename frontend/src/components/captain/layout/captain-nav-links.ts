@@ -1,6 +1,5 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  Car,
   CircleDollarSign,
   FileText,
   Headphones,
@@ -9,7 +8,7 @@ import {
   MapPin,
   Settings,
   Shield,
-  Wallet,
+  User,
   Zap,
 } from "lucide-react";
 
@@ -63,6 +62,12 @@ export const captainNavLinks: CaptainNavLink[] = [
     label: "Support",
     href: "/captain/support",
     icon: Headphones,
+  },
+  {
+    label: "Profile",
+    href: "/captain/profile",
+    icon: User,
+    description: "Incoming bookings",
   },
   {
     label: "Settings",
