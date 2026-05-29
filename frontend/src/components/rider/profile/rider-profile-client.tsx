@@ -20,6 +20,7 @@ import {
   Pencil,
   X,
   Check,
+  Upload,
 } from "lucide-react";
 import { uploadProfilePhoto } from "@/services/profile/profile.service";
 
@@ -199,8 +200,40 @@ async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     <div className="space-y-4">
       {/* ── Profile Card ── */}
       <RiderCard className="text-center">
-        <div className="mx-auto flex size-20 items-center justify-center rounded-full bg-neutral-200 text-2xl font-bold text-neutral-700">
-          {profile.fullName.charAt(0)}
+        <div className="mx-auto">
+          <div className="relative inline-block">
+            {profile.profileImage ? (
+              <img
+                src={profile.profileImage}
+                alt={profile.fullName}
+                className="size-20 rounded-full object-cover"
+              />
+            ) : (
+              <div className="flex size-20 items-center justify-center rounded-full bg-neutral-200 text-2xl font-bold text-neutral-700">
+                {profile.fullName.charAt(0)}
+              </div>
+            )}
+            {/* Upload Overlay */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={photoUploading}
+              className="absolute bottom-0 right-0 flex items-center justify-center rounded-full bg-primary p-2 text-white shadow-md hover:bg-primary/90 disabled:opacity-50"
+              title="Upload photo"
+            >
+              {photoUploading ? (
+                <div className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              ) : (
+                <Upload className="size-4" />
+              )}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handlePhotoChange}
+              className="hidden"
+            />
+          </div>
         </div>
         {editing ? (
           <div className="mt-4">
