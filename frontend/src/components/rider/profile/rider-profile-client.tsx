@@ -397,40 +397,6 @@ export default function RiderProfileClient() {
         )}
       </RiderCard>
 
-      {/* ── Saved Places ── */}
-      <RiderCard>
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-neutral-900">
-          <MapPin className="size-4 text-primary" /> Saved places
-        </h2>
-        {editing ? (
-          <div className="mt-4 space-y-3">
-            <EditField
-              label="Default Pickup Address"
-              value={(form.defaultPickupAddress as string) ?? ""}
-              onChange={(v) => handleChange("defaultPickupAddress", v)}
-            />
-            <EditField
-              label="Default Drop Address"
-              value={(form.defaultDropAddress as string) ?? ""}
-              onChange={(v) => handleChange("defaultDropAddress", v)}
-            />
-          </div>
-        ) : (
-          <ul className="mt-4 space-y-3">
-            <InfoRow
-              icon={<MapPin className="size-4" />}
-              label="Default Pickup"
-              value={profile.defaultPickupAddress ?? "—"}
-            />
-            <InfoRow
-              icon={<Navigation className="size-4" />}
-              label="Default Drop"
-              value={profile.defaultDropAddress ?? "—"}
-            />
-          </ul>
-        )}
-      </RiderCard>
-
       {/* ── Emergency Contact ── */}
       <RiderCard>
         <h2 className="flex items-center gap-2 text-sm font-semibold text-neutral-900">

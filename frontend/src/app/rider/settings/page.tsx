@@ -1,10 +1,10 @@
 import RiderPageLayout from "@/components/rider/layout/rider-page-layout";
-import RiderSettingsPanel from "@/components/rider/settings/rider-settings-panel";
+import SettingsPanel from "@/components/rider/settings/settings-panel";
 
 export default function RiderSettingsPage() {
   return (
     <RiderPageLayout title="Settings">
-      <RiderSettingsPanel />
+      <SettingsPanel />
     </RiderPageLayout>
   );
 }
