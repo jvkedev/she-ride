@@ -50,11 +50,6 @@ export const captainNavLinks: CaptainNavLink[] = [
     icon: CircleDollarSign,
   },
   {
-    label: "Wallet",
-    href: "/captain/wallet",
-    icon: Wallet,
-  },
-  {
     label: "Vehicle",
     href: "/captain/vehicle",
     icon: Car,
@@ -82,7 +77,10 @@ export const captainNavLinks: CaptainNavLink[] = [
 ];
 
 export const captainMobileNavLinks = captainNavLinks.filter((link) =>
-  ["/captain", "/captain/requests", "/captain/active-ride", "/captain/earnings"].includes(
-    link.href,
-  ),
+  [
+    "/captain",
+    "/captain/requests",
+    "/captain/active-ride",
+    "/captain/earnings",
+  ].includes(link.href),
 );

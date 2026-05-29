@@ -1,7 +1,7 @@
 import { getAccessToken } from "@/lib/auth/session";
 import { refreshAccessToken, logout } from "@/services/auth/auth.service";
 
-const API = process.env.NEXT_PUBLIC_API_URL;
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 type FetchOptions = RequestInit & { _retry?: boolean };
 

@@ -21,12 +21,9 @@ export type RiderNavLink = {
 
 export const riderSidebarLinks: RiderNavLink[] = [
   { label: "Trip", href: "/rider", icon: LayoutDashboard },
-  { label: "Rentals", href: "/rider/rentals", icon: Key },
-  { label: "Parcel", href: "/rider/parcel", icon: Package },
   { label: "Track Ride", href: "/rider/track", icon: Car },
   { label: "Ride History", href: "/rider/history", icon: Clock3 },
   { label: "Payments", href: "/rider/payments", icon: CreditCard },
-  { label: "Saved Places", href: "/rider/saved-places", icon: MapPinned },
   { label: "Safety", href: "/rider/safety", icon: ShieldCheck },
   { label: "Profile", href: "/rider/profile", icon: User },
   { label: "Support", href: "/rider/support", icon: Headphones },

@@ -3,7 +3,7 @@ import { refreshAccessToken, logout } from "@/services/auth/auth.service";
 import { getAccessToken } from "@/lib/auth/session";
 
 const axiosClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000",
 });
 
 axiosClient.interceptors.request.use((config) => {

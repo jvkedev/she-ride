@@ -1,6 +1,6 @@
 import { getRefreshToken, clearAuthSession } from "@/lib/auth/session";
 
-const API = process.env.NEXT_PUBLIC_API_URL;
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = getRefreshToken();
