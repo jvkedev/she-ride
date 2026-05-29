@@ -12,6 +12,8 @@ export interface CaptainEarningsDaily {
   amount: number;
 }
 
+export type WeeklyEarningsPoint = CaptainEarningsDaily;
+
 export interface CaptainEarningsStats {
   totalTrips: number;
   avgPerTrip: number;
