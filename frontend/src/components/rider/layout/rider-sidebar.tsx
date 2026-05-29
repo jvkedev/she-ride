@@ -1,15 +1,26 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { riderSidebarLinks } from "@/components/rider/layout/rider-nav-links";
 import DashboardLogoutButton from "@/components/shared/dashboard/logout-button";
-import { riderProfile } from "@/lib/rider/rider-mock-data";
+import {
+  getRiderProfile,
+  RiderProfile,
+} from "@/services/profile/profile.service";
 import { cn } from "@/lib/utils";
 
 export default function RiderSidebar() {
+  const [profile, setProfile] = useState<RiderProfile | null>(null);
   const pathname = usePathname();
+
+  useEffect(() => {
+    getRiderProfile()
+      .then((data) => setProfile(data))
+      .catch(() => setProfile(null));
+  }, []);
 
   return (
     <aside className="hidden h-full w-60 shrink-0 flex-col border-r border-neutral-200 bg-white lg:flex">
@@ -54,15 +65,25 @@ export default function RiderSidebar() {
           href="/rider/profile"
           className="flex items-center gap-3 rounded-lg transition hover:bg-neutral-50"
         >
-          <div className="flex size-10 items-center justify-center rounded-full bg-neutral-200 text-sm font-semibold text-neutral-700">
-            {riderProfile.name.charAt(0)}
+          <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-neutral-200 text-sm font-semibold text-neutral-700">
+            {profile?.profileImage ? (
+              <img
+                src={profile.profileImage}
+                alt={profile.fullName}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <span>{profile?.fullName?.charAt(0) ?? "R"}</span>
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-neutral-900">
-              {riderProfile.name}
+              {profile?.fullName ?? "Rider"}
             </p>
             <p className="text-xs text-neutral-500">
-              ★ {riderProfile.rating} · {riderProfile.totalRides} rides
+              {profile
+                ? `★ ${profile.rating.toFixed(1)} · ${profile.totalRides} rides`
+                : "Loading profile..."}
             </p>
           </div>
         </Link>
