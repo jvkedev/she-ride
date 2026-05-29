@@ -4,6 +4,7 @@ import CaptainActivityPanel from "@/components/captain/dashboard/captain-activit
 import CaptainCurrentRide from "@/components/captain/dashboard/captain-current-ride";
 import CaptainEarningsCard from "@/components/captain/dashboard/captain-earnings-card";
 import CaptainMapPanel from "@/components/captain/dashboard/captain-map-panel";
+import CaptainProfilePanel from "@/components/captain/dashboard/captain-profile-panel";
 import CaptainStatsCards from "@/components/captain/dashboard/captain-stats-cards";
 import RequestList from "@/components/captain/requests/request-list";
 import EmergencySosCard from "@/components/captain/safety/emergency-sos-card";
@@ -24,6 +25,9 @@ export default function CaptainDashboardLayout() {
         className={`${captainPanelScroll} min-h-0 overflow-y-auto border-neutral-200 p-4 lg:border-r lg:p-5`}
       >
         <CaptainStatsCards />
+        <div className="mt-4">
+          <CaptainProfilePanel />
+        </div>
         <CaptainEarningsCard />
         <section className="mt-4">
           <h2 className={`${captainHeading} mb-3`}>Incoming requests</h2>

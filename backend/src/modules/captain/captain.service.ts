@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DocumentStatus, RideStatus } from '@prisma/client';
+import { UpdateCaptainProfileDto } from './dto/update-captain-profile.dto';
+import { v2 as cloudinary } from 'cloudinary';
 
 @Injectable()
 export class CaptainService {
@@ -147,6 +149,127 @@ export class CaptainService {
         status: toStatus(!!document?.selfieImage, status),
       },
     ];
+  }
+
+  async updateProfilePhoto(
+    userId: string,
+    file: Express.Multer.File,
+  ): Promise<{ profileImage: string }> {
+    // Upload buffer to Cloudinary
+    const result = await new Promise<{ secure_url: string }>(
+      (resolve, reject) => {
+        cloudinary.uploader
+          .upload_stream(
+            { folder: 'captain-photos', resource_type: 'image' },
+            (error, result) => {
+              if (error || !result)
+                reject(new Error(error?.message ?? 'Cloudinary upload failed'));
+              else resolve(result);
+            },
+          )
+          .end(file.buffer);
+      },
+    );
+
+    const profileImage = result.secure_url;
+
+    await this.prisma.captain.update({
+      where: { userId },
+      data: { profileImage },
+    });
+
+    return { profileImage };
+  }
+
+  async getProfile(userId: string) {
+    const captain = await this.prisma.captain.findUnique({
+      where: { userId },
+      select: {
+        id: true,
+        profileImage: true,
+        gender: true,
+        dateOfBirth: true,
+        isVerified: true,
+        isOnline: true,
+        rating: true,
+        totalTrips: true,
+        verifiedAt: true,
+        user: {
+          select: {
+            fullName: true,
+            email: true,
+            phoneNumber: true,
+          },
+        },
+        vehicle: {
+          select: {
+            brand: true,
+            model: true,
+            color: true,
+            vehicleNumber: true,
+            vehicleType: true,
+          },
+        },
+      },
+    });
+
+    if (!captain) throw new NotFoundException('Captain profile not found');
+
+    return {
+      name: captain.user.fullName,
+      email: captain.user.email,
+      phoneNumber: captain.user.phoneNumber,
+      profileImage: captain.profileImage,
+      gender: captain.gender,
+      dateOfBirth: captain.dateOfBirth,
+      isVerified: captain.isVerified,
+      isOnline: captain.isOnline,
+      rating: captain.rating,
+      totalTrips: captain.totalTrips,
+      verifiedAt: captain.verifiedAt,
+      vehicle: captain.vehicle
+        ? `${captain.vehicle.brand} ${captain.vehicle.model}`
+        : '—',
+      plateNumber: captain.vehicle?.vehicleNumber ?? '—',
+      vehicleType: captain.vehicle?.vehicleType ?? null,
+      vehicleColor: captain.vehicle?.color ?? null,
+    };
+  }
+
+  async updateProfile(userId: string, dto: UpdateCaptainProfileDto) {
+    const captain = await this.prisma.captain.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!captain) throw new NotFoundException('Captain profile not found');
+
+    const { fullName, name, ...captainFields } = dto;
+    const resolvedFullName = fullName ?? name;
+
+    await this.prisma.$transaction([
+      // update fullName on User if provided
+      ...(resolvedFullName
+        ? [
+            this.prisma.user.update({
+              where: { id: userId },
+              data: { fullName: resolvedFullName },
+            }),
+          ]
+        : []),
+      // update captain fields
+      this.prisma.captain.update({
+        where: { id: captain.id },
+        data: {
+          ...captainFields,
+          dateOfBirth: captainFields.dateOfBirth
+            ? new Date(captainFields.dateOfBirth)
+            : undefined,
+        },
+      }),
+    ]);
+
+    return this.getProfile(userId);
   }
 
   private getWeeklyMap(

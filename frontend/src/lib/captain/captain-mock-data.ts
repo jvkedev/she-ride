@@ -1,10 +1,16 @@
 export type CaptainProfile = {
   id: string;
   name: string;
+  profileImage?: string | null;
+  gender?: "MALE" | "FEMALE" | "OTHER";
+  dateOfBirth?: string;
+  isVerified: boolean;
+  isOnline: boolean;
   rating: number;
   totalTrips: number;
   vehicle: string;
   plateNumber: string;
+  verifiedAt?: string;
 };
 
 export type DailyStats = {
@@ -41,10 +47,16 @@ export type ActiveRide = {
 export const captainProfile: CaptainProfile = {
   id: "cap-001",
   name: "Priya Sharma",
+  profileImage: null,
+  gender: "FEMALE",
+  dateOfBirth: "1992-07-18T00:00:00.000Z",
+  isVerified: true,
+  isOnline: true,
   rating: 4.92,
   totalTrips: 1248,
   vehicle: "She Auto",
   plateNumber: "DL 01 AB 4521",
+  verifiedAt: "2024-05-01T09:15:00.000Z",
 };
 
 export const todayStats: DailyStats = {

@@ -1,12 +1,15 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { captainNavLinks } from "@/components/captain/layout/captain-nav-links";
-import CaptainStatusBadge from "@/components/captain/shared/captain-status-badge";
 import DashboardLogoutButton from "@/components/shared/dashboard/logout-button";
-import { captainProfile } from "@/lib/captain/captain-mock-data";
+import {
+  CaptainProfile,
+  getCaptainProfile,
+} from "@/services/captain/captain-profile.service";
 import { cn } from "@/lib/utils";
 
 type CaptainSidebarProps = {
@@ -16,7 +19,14 @@ type CaptainSidebarProps = {
 export default function CaptainSidebar({
   isOnline = true,
 }: CaptainSidebarProps) {
+  const [profile, setProfile] = useState<CaptainProfile | null>(null);
   const pathname = usePathname();
+
+  useEffect(() => {
+    getCaptainProfile()
+      .then((data) => setProfile(data))
+      .catch(() => setProfile(null));
+  }, []);
 
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r border-neutral-200 bg-white lg:flex lg:h-full lg:min-h-0">
@@ -56,20 +66,35 @@ export default function CaptainSidebar({
       </nav>
 
       <div className="shrink-0 border-t border-neutral-100 p-4">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-full bg-neutral-200 text-sm font-semibold text-neutral-700">
-            {captainProfile.name.charAt(0)}
+        <Link
+          href="/captain/profile"
+          prefetch
+          className="group block rounded-2xl bg-neutral-50 p-3 transition hover:bg-neutral-100"
+        >
+          <div className="flex items-center gap-3">
+            <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-neutral-200 text-sm font-semibold text-neutral-700">
+              {profile?.profileImage ? (
+                <img
+                  src={profile.profileImage}
+                  alt={profile.name}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span>{profile?.name?.charAt(0) ?? "C"}</span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-neutral-900">
+                {profile?.name ?? "Captain"}
+              </p>
+              <p className="text-xs text-neutral-500">
+                {profile
+                  ? `★ ${profile.rating.toFixed(1)} · ${profile.totalTrips} trips`
+                  : "Loading profile..."}
+              </p>
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-neutral-900">
-              {captainProfile.name}
-            </p>
-            <p className="text-xs text-neutral-500">
-              ★ {captainProfile.rating} · {captainProfile.totalTrips} trips
-            </p>
-          </div>
-        </div>
-        <div className="mt-3"></div>
+        </Link>
         <DashboardLogoutButton className="mt-3" />
       </div>
     </aside>
