@@ -124,23 +124,23 @@ export default function RiderProfileClient() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<Partial<RiderProfile>>({});
   // Add ref and handler at the top of the component
-const fileInputRef = useRef<HTMLInputElement>(null);
-const [photoUploading, setPhotoUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
 
-async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  setPhotoUploading(true);
-  try {
-    const { profileImage } = await uploadProfilePhoto(file);
-    setProfile((prev) => prev ? { ...prev, profileImage } : prev);
-  } catch (err) {
-    console.error("Photo upload failed:", err);
-  } finally {
-    setPhotoUploading(false);
-    e.target.value = ""; // reset input
+  async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoUploading(true);
+    try {
+      const { profileImage } = await uploadProfilePhoto(file);
+      setProfile((prev) => (prev ? { ...prev, profileImage } : prev));
+    } catch (err) {
+      console.error("Photo upload failed:", err);
+    } finally {
+      setPhotoUploading(false);
+      e.target.value = ""; // reset input
+    }
   }
-}
 
   useEffect(() => {
     getRiderProfile()
