@@ -11,7 +11,7 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import type { JwtUser } from '../../common/types/jwt-user.type';
-import { Throttle, SkipThrottle } from '@nestjs/throttler';
+import { SkipThrottle } from '@nestjs/throttler';
 
 import {
   registerSchema,
@@ -53,7 +53,6 @@ export class AuthController {
   }
 
   @Post('register/send-otp')
-  @Throttle({ default: { ttl: 600_000, limit: 3 } })
   @UsePipes(new ZodValidationPipe(registerSchema))
   sendRegisterOtp(@Body() dto: RegisterDto) {
     return this.authService.sendRegisterOtp(dto);
@@ -66,7 +65,6 @@ export class AuthController {
   }
 
   @Post('login/send-otp')
-  @Throttle({ default: { ttl: 600_000, limit: 3 } })
   @UsePipes(new ZodValidationPipe(sendLoginOtpSchema))
   sendLoginOtp(@Body() dto: SendLoginOtpDto) {
     return this.authService.sendLoginOtp(dto);

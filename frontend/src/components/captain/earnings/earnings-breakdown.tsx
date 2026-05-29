@@ -1,15 +1,29 @@
 import CaptainCard from "@/components/captain/shared/captain-card";
-import { todayEarningsSummary } from "@/lib/captain/captain-mock-data";
 import { captainHeading } from "@/lib/captain/captain-styles";
+import { CaptainEarningsSummary } from "@/services/captain/captain-earnings.service";
 
-const breakdown = [
-  { label: "Trip fares", amount: todayEarningsSummary.total - todayEarningsSummary.incentives },
-  { label: "Incentives & bonuses", amount: todayEarningsSummary.incentives },
-  { label: "Platform fee", amount: -120 },
-  { label: "Net payout", amount: todayEarningsSummary.netPayout, highlight: true },
-];
+interface EarningsBreakdownProps {
+  summary?: CaptainEarningsSummary | null;
+  loading?: boolean;
+}
 
-export default function EarningsBreakdown() {
+export default function EarningsBreakdown({
+  summary,
+  loading,
+}: EarningsBreakdownProps) {
+  const netPayout = summary?.netPayout ?? 0;
+  const tripFares = summary?.tripFares ?? 0;
+
+  const breakdown = loading
+    ? [
+        { label: "Trip fares", amount: 0 },
+        { label: "Net payout", amount: 0, highlight: true },
+      ]
+    : [
+        { label: "Trip fares", amount: tripFares },
+        { label: "Net payout", amount: netPayout, highlight: true },
+      ];
+
   return (
     <CaptainCard>
       <h2 className={captainHeading}>Today&apos;s breakdown</h2>

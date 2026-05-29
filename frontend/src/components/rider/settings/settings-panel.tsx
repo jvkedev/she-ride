@@ -99,7 +99,9 @@ export default function SettingsPanel() {
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between rounded-2xl border border-neutral-200 bg-white px-4 py-4 shadow-sm">
             <div>
-              <p className="text-sm font-medium text-neutral-900">Ride updates</p>
+              <p className="text-sm font-medium text-neutral-900">
+                Ride updates
+              </p>
               <p className="text-xs text-neutral-500">
                 Receive status updates about your rides.
               </p>
@@ -121,7 +123,9 @@ export default function SettingsPanel() {
           </div>
           <div className="flex items-center justify-between rounded-2xl border border-neutral-200 bg-white px-4 py-4 shadow-sm">
             <div>
-              <p className="text-sm font-medium text-neutral-900">Safety alerts</p>
+              <p className="text-sm font-medium text-neutral-900">
+                Safety alerts
+              </p>
               <p className="text-xs text-neutral-500">
                 Get notified for safety-related events and warnings.
               </p>

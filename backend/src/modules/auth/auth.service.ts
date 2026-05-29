@@ -3,6 +3,8 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  HttpException,
+  HttpStatus,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -93,6 +95,19 @@ export class AuthService {
     };
   }
 
+  private async enforceOtpCooldown(
+    type: OtpType,
+    phoneNumber: string,
+    message: string,
+  ) {
+    const cooldownKey = `otp-cooldown:${type}:${phoneNumber}`;
+    const acquired = await redis.set(cooldownKey, '1', 'EX', 60, 'NX');
+
+    if (acquired !== 'OK') {
+      throw new HttpException(message, HttpStatus.TOO_MANY_REQUESTS);
+    }
+  }
+
   async refreshToken(dto: RefreshTokenDto) {
     try {
       const payload = this.jwtService.verify<RefreshTokenPayload>(
@@ -176,6 +191,12 @@ export class AuthService {
       `pending-register:${dto.phoneNumber}`,
       600,
       JSON.stringify(pending),
+    );
+
+    await this.enforceOtpCooldown(
+      OtpType.PHONE_VERIFICATION,
+      dto.phoneNumber,
+      'Please wait 60 seconds before requesting another registration OTP.',
     );
 
     await this.otpService.sendOtp(OtpType.PHONE_VERIFICATION, dto.phoneNumber);
@@ -361,6 +382,12 @@ export class AuthService {
     if (user.accountStatus === AccountStatus.BLOCKED) {
       throw new ForbiddenException('Your account is blocked');
     }
+
+    await this.enforceOtpCooldown(
+      OtpType.LOGIN,
+      user.phoneNumber,
+      'Please wait 60 seconds before requesting another login OTP.',
+    );
 
     await this.otpService.sendOtp(OtpType.LOGIN, user.phoneNumber);
 

@@ -63,7 +63,7 @@ function InfoRow({
   value: string;
 }) {
   return (
-    <li className="flex items-center gap-3 rounded-lg border border-neutral-100 px-3 py-3">
+    <li className="flex items-center gap-3 roundborder border-neutral-100 px-3 py-3">
       <span className="shrink-0 text-neutral-400">{icon}</span>
       <div className="min-w-0">
         <p className="text-xs text-neutral-500">{label}</p>

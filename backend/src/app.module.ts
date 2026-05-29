@@ -1,5 +1,5 @@
 import { BullModule } from '@nestjs/bullmq';
-import { Module } from '@nestjs/common';
+import { ExecutionContext, Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { ThrottlerModule } from '@nestjs/throttler';
@@ -25,6 +25,13 @@ import { SecurityModule } from './modules/security/security.module';
 @Module({
   imports: [
     ThrottlerModule.forRoot({
+      skipIf: (context: ExecutionContext) =>
+        (() => {
+          const request = context.switchToHttp().getRequest();
+          const path = (request.originalUrl ?? request.url ?? '').split('?')[0];
+
+          return request.method === 'OPTIONS' || path.startsWith('/auth');
+        })(),
       throttlers: [
         {
           name: 'default',

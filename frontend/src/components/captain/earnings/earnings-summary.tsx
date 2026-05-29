@@ -1,28 +1,44 @@
 import { IndianRupee, TrendingUp } from "lucide-react";
 
 import CaptainStatWidget from "@/components/captain/shared/captain-stat-widget";
-import { todayEarningsSummary } from "@/lib/captain/captain-mock-data";
+import {
+  CaptainEarningsSummary,
+  CaptainEarningsStats,
+} from "@/services/captain/captain-earnings.service";
 
-export default function EarningsSummary() {
+interface EarningsSummaryProps {
+  summary?: CaptainEarningsSummary | null;
+  stats?: CaptainEarningsStats | null;
+  loading?: boolean;
+}
+
+export default function EarningsSummary({
+  summary,
+  stats,
+  loading,
+}: EarningsSummaryProps) {
+  const total = summary?.total ?? 0;
+  const netPayout = summary?.netPayout ?? 0;
+  const weekTotal = stats?.weekTotal ?? 0;
+
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <CaptainStatWidget
         label="Today"
-        value={`₹${todayEarningsSummary.total.toLocaleString("en-IN")}`}
+        value={loading ? "Loading..." : `₹${total.toLocaleString("en-IN")}`}
         icon={IndianRupee}
         accent="primary"
       />
       <CaptainStatWidget
         label="This week"
-        value="₹17,950"
-        hint="+12% vs last week"
+        value={loading ? "—" : `₹${weekTotal.toLocaleString("en-IN")}`}
+        hint="vs last week"
         icon={TrendingUp}
         accent="primary"
       />
       <CaptainStatWidget
         label="Net payout"
-        value={`₹${todayEarningsSummary.netPayout.toLocaleString("en-IN")}`}
-        hint="After platform fees"
+        value={loading ? "—" : `₹${netPayout.toLocaleString("en-IN")}`}
         icon={IndianRupee}
       />
     </div>

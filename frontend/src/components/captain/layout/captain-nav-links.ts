@@ -50,11 +50,6 @@ export const captainNavLinks: CaptainNavLink[] = [
     icon: CircleDollarSign,
   },
   {
-    label: "Vehicle",
-    href: "/captain/vehicle",
-    icon: Car,
-  },
-  {
     label: "Documents",
     href: "/captain/documents",
     icon: FileText,

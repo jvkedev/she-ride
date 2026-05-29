@@ -1,15 +1,30 @@
 import CaptainCard from "@/components/captain/shared/captain-card";
-import { weeklyEarnings } from "@/lib/captain/captain-mock-data";
 import { captainHeading } from "@/lib/captain/captain-styles";
+import { WeeklyEarningsPoint } from "@/services/captain/captain-earnings.service";
 
-export default function EarningsChart() {
-  const max = Math.max(...weeklyEarnings.map((d) => d.amount));
+interface EarningsChartProps {
+  data?: WeeklyEarningsPoint[] | null;
+  loading?: boolean;
+}
+
+export default function EarningsChart({ data, loading }: EarningsChartProps) {
+  const values = data ?? [];
+  const max = values.length ? Math.max(...values.map((d) => d.amount)) : 1;
+
+  if (loading) {
+    return (
+      <CaptainCard>
+        <h2 className={captainHeading}>Weekly earnings</h2>
+        <div className="mt-6 h-32 rounded-lg bg-neutral-100" />
+      </CaptainCard>
+    );
+  }
 
   return (
     <CaptainCard>
       <h2 className={captainHeading}>Weekly earnings</h2>
       <div className="mt-6 flex items-end justify-between gap-2">
-        {weeklyEarnings.map((day) => {
+        {values.map((day) => {
           const height = Math.round((day.amount / max) * 100);
           return (
             <div
