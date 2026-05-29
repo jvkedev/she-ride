@@ -1,10 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { RideStatus, AccountStatus, DocumentStatus } from '@prisma/client';
+import {
+  RideStatus,
+  AccountStatus,
+  DocumentStatus,
+  UserRole,
+} from '@prisma/client';
+import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
 
 @Injectable()
 export class AdminService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cloudinary: CloudinaryService,
+  ) {}
 
   // ── Dashboard ────────────────────────────────────────────────────────────
 
@@ -585,14 +594,133 @@ export class AdminService {
         documentStatus: dto.status,
         rejectionReason:
           dto.status === DocumentStatus.REJECTED
-            ? dto.rejectionReason ?? 'Document rejected by security review'
+            ? (dto.rejectionReason ?? 'Document rejected by security review')
             : null,
         verifiedAt:
-          dto.status === DocumentStatus.APPROVED ? new Date() : captain.document.verifiedAt,
+          dto.status === DocumentStatus.APPROVED
+            ? new Date()
+            : captain.document.verifiedAt,
       },
     });
 
     return this.getCaptainById(captainId);
+  }
+
+  private async ensureAdminProfile(userId: string) {
+    const existing = await this.prisma.admin.findUnique({ where: { userId } });
+    if (existing) {
+      return existing;
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+
+    if (!user || user.role !== UserRole.ADMIN) {
+      throw new NotFoundException('Admin profile not found');
+    }
+
+    return this.prisma.admin.create({ data: { userId } });
+  }
+
+  async getProfile(userId: string) {
+    await this.ensureAdminProfile(userId);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { admin: true },
+    });
+
+    if (!user?.admin) {
+      throw new NotFoundException('Admin profile not found');
+    }
+
+    return {
+      fullName: user.fullName,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+      profileImage: user.admin.profileImage,
+      gender: user.admin.gender,
+      dateOfBirth: user.admin.dateOfBirth?.toISOString() ?? null,
+      department: user.admin.department,
+      jobTitle: user.admin.jobTitle,
+      memberSince: user.createdAt.toISOString(),
+    };
+  }
+
+  async updateProfile(
+    userId: string,
+    dto: {
+      fullName?: string;
+      email?: string;
+      gender?: 'MALE' | 'FEMALE' | 'OTHER';
+      dateOfBirth?: string;
+      department?: string;
+      jobTitle?: string;
+    },
+  ) {
+    await this.ensureAdminProfile(userId);
+
+    await this.prisma.$transaction([
+      ...(dto.fullName || dto.email
+        ? [
+            this.prisma.user.update({
+              where: { id: userId },
+              data: {
+                ...(dto.fullName && { fullName: dto.fullName }),
+                ...(dto.email && { email: dto.email }),
+              },
+            }),
+          ]
+        : []),
+      this.prisma.admin.update({
+        where: { userId },
+        data: {
+          ...(dto.gender && { gender: dto.gender }),
+          ...(dto.dateOfBirth && { dateOfBirth: new Date(dto.dateOfBirth) }),
+          ...(dto.department !== undefined && { department: dto.department }),
+          ...(dto.jobTitle !== undefined && { jobTitle: dto.jobTitle }),
+        },
+      }),
+    ]);
+
+    return this.getProfile(userId);
+  }
+
+  async updateProfilePhoto(
+    userId: string,
+    file: Express.Multer.File,
+  ): Promise<{ profileImage: string }> {
+    const admin = await this.ensureAdminProfile(userId);
+
+    if (admin.profileImage) {
+      const publicId = this.extractPublicId(admin.profileImage);
+      if (publicId) {
+        await this.cloudinary.deleteImage(publicId);
+      }
+    }
+
+    const url = await this.cloudinary.uploadImage(file, 'she-ride/admins');
+
+    await this.prisma.admin.update({
+      where: { userId },
+      data: { profileImage: url },
+    });
+
+    return { profileImage: url };
+  }
+
+  private extractPublicId(url: string): string | null {
+    try {
+      const parts = url.split('/upload/');
+      if (parts.length < 2) return null;
+      const withVersion = parts[1];
+      const withoutVersion = withVersion.replace(/^v\d+\//, '');
+      return withoutVersion.replace(/\.[^.]+$/, '');
+    } catch {
+      return null;
+    }
   }
 
   // ── All Rides list ──────────────────────────────────────────────────────
@@ -638,7 +766,8 @@ export class AdminService {
       driverName: ride.captain?.user.fullName ?? 'Unassigned',
       tripAmount: ride.finalFare ?? ride.estimatedFare ?? 0,
       paymentMethod: ride.paymentMethod.toLowerCase(),
-      completedAt: ride.completedAt?.toISOString() ?? ride.createdAt.toISOString(),
+      completedAt:
+        ride.completedAt?.toISOString() ?? ride.createdAt.toISOString(),
       status: 'completed',
       pickup: ride.pickupAddress,
       dropoff: ride.dropAddress,

@@ -10,6 +10,7 @@ import {
   ShieldAlert,
   Ticket,
   Users,
+  User,
 } from "lucide-react";
 
 export type AdminNavLink = {
@@ -21,6 +22,7 @@ export type AdminNavLink = {
 
 export const adminNavLinks: AdminNavLink[] = [
   { label: "Overview", href: "/admin", icon: LayoutDashboard },
+  { label: "Profile", href: "/admin/profile", icon: User },
   { label: "Drivers", href: "/admin/drivers", icon: Car },
   { label: "Riders", href: "/admin/riders", icon: Users },
   { label: "Rides", href: "/admin/rides", icon: MapPin },

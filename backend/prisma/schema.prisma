@@ -230,6 +230,8 @@ model User {
   rider   Rider?
   captain Captain?
 
+  admin Admin?
+
   fraudCases        FraudCase[]
   fraudSignals      FraudSignal[]
   suspiciousAccount SuspiciousAccount?
@@ -301,7 +303,6 @@ model Captain {
 
   currentLatitude  Float?
   currentLongitude Float?
-  
 
   behaviorFlags DriverBehaviorFlag[]
 
@@ -368,6 +369,26 @@ model Vehicle {
   updatedAt DateTime @updatedAt
 
   @@map("vehicles")
+}
+
+model Admin {
+  id String @id @default(cuid())
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  profileImage String?
+
+  gender      Gender?
+  dateOfBirth DateTime?
+
+  department String?
+  jobTitle   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("admins")
 }
 
 model Ride {

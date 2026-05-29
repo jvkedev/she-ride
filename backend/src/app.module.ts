@@ -4,6 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
+import { Request } from 'express';
 
 import { AuthModule } from './modules/auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -18,20 +19,22 @@ import { RidesModule } from './modules/rides/rides.module';
 import { LocationModule } from './modules/location/location.module';
 import { GatewayModule } from './modules/gateway/gateway.module';
 import { ProfileModule } from './modules/profile/profile.module';
-
 import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
 import { SecurityModule } from './modules/security/security.module';
 
 @Module({
   imports: [
     ThrottlerModule.forRoot({
-      skipIf: (context: ExecutionContext) =>
-        (() => {
-          const request = context.switchToHttp().getRequest();
-          const path = (request.originalUrl ?? request.url ?? '').split('?')[0];
+      skipIf: (context: ExecutionContext): boolean => {
+        const request = context.switchToHttp().getRequest<Request>();
+        const originalUrl = request.originalUrl ?? request.url ?? '';
+        const path = originalUrl.split('?')[0];
 
-          return request.method === 'OPTIONS' || path.startsWith('/auth');
-        })(),
+        const isOptions = request.method === 'OPTIONS';
+        const isAuthPath = path.startsWith('/auth');
+
+        return isOptions || isAuthPath;
+      },
       throttlers: [
         {
           name: 'default',

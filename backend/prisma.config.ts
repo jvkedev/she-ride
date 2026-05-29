@@ -1,6 +1,8 @@
 import 'dotenv/config';
-// import { defineConfig } from 'prisma/config';
 
 export default {
   schema: './prisma/schema.prisma',
+  migrations: {
+    seed: 'node prisma/seed.js',
+  },
 };

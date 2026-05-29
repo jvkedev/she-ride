@@ -4,46 +4,71 @@ import { getAccessToken } from "@/lib/auth/session";
 
 const axiosClient = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000",
+  withCredentials: true,
 });
 
 axiosClient.interceptors.request.use((config) => {
   const token = getAccessToken();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
   return config;
 });
 
 axiosClient.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const original = error.config;
-    const status = error.response?.status;
-    const message = error.response?.data?.message ?? "";
 
-    // ── Blocked account ───────────────────────────────────────────
-    if (status === 403 && message.toLowerCase().includes("blocked")) {
+  async (error) => {
+    const originalRequest = error.config;
+
+    const status = error.response?.status;
+    const message = error.response?.data?.message?.toLowerCase?.() || "";
+
+    // Blocked account
+    if (status === 403 && message.includes("blocked")) {
       logout();
+
       if (typeof window !== "undefined") {
         window.location.href = "/login?reason=blocked";
       }
+
       return Promise.reject(error);
     }
 
-    // ── Token expired — try refresh ───────────────────────────────
-    if (status === 401 && !original._retry) {
-      original._retry = true;
+    // Token expired
+    if (status === 401 && !originalRequest?._retry) {
+      originalRequest._retry = true;
 
-      const newToken = await refreshAccessToken();
+      try {
+        const newToken = await refreshAccessToken();
 
-      if (!newToken) {
+        if (!newToken) {
+          logout();
+
+          if (typeof window !== "undefined") {
+            window.location.href = "/login?reason=session_expired";
+          }
+
+          return Promise.reject(error);
+        }
+
+        originalRequest.headers = {
+          ...originalRequest.headers,
+          Authorization: `Bearer ${newToken}`,
+        };
+
+        return axiosClient(originalRequest);
+      } catch (refreshError) {
         logout();
+
         if (typeof window !== "undefined") {
           window.location.href = "/login?reason=session_expired";
         }
-        return Promise.reject(error);
-      }
 
-      original.headers.Authorization = `Bearer ${newToken}`;
-      return axiosClient(original);
+        return Promise.reject(refreshError);
+      }
     }
 
     return Promise.reject(error);

@@ -1,101 +1,153 @@
+// admin.controller.ts
 import {
   Controller,
   Get,
+  Post,
   Patch,
-  Param,
   Body,
-  Query,
+  Param,
   UseGuards,
+  Req,
+  UploadedFile,
+  UseInterceptors,
+  NotFoundException,
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { AdminService } from './admin.service';
-import { UpdateCaptainDocumentDto } from './dto/update-captain-document.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole, DocumentStatus } from '@prisma/client';
+import { UpdateAdminProfileDto } from './dto/update-admin-profile.dto';
+import type { Request } from 'express';
+
+// Define a type for the authenticated user
+interface AuthenticatedRequest extends Request {
+  user: {
+    id: string;
+    email: string;
+    role: UserRole;
+  };
+}
 
 @Controller('admin')
-@UseGuards(JwtAuthGuard)
-@Roles('ADMIN')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN)
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
-  // ── Dashboard ─────────────────────────────────────────────────────────────
-
+  // Dashboard
   @Get('dashboard/stats')
-  getDashboardStats() {
+  async getDashboardStats() {
     return this.adminService.getDashboardStats();
   }
 
   @Get('dashboard/revenue-chart')
-  getRevenueChart() {
+  async getRevenueChart() {
     return this.adminService.getRevenueChart();
   }
 
   @Get('dashboard/ride-trends')
-  getRideTrends() {
+  async getRideTrends() {
     return this.adminService.getRideTrends();
   }
 
   @Get('dashboard/recent-rides')
-  getRecentRides(@Query('limit') limit?: string) {
-    return this.adminService.getRecentRides(limit ? +limit : 10);
+  async getRecentRides() {
+    return this.adminService.getRecentRides();
   }
 
   @Get('dashboard/activity-feed')
-  getActivityFeed(@Query('limit') limit?: string) {
-    return this.adminService.getActivityFeed(limit ? +limit : 15);
+  async getActivityFeed() {
+    return this.adminService.getActivityFeed();
   }
 
-  // ── Riders ────────────────────────────────────────────────────────────────
-
+  // Riders
   @Get('riders')
-  getRiders() {
+  async getRiders() {
     return this.adminService.getRiders();
   }
 
-  @Patch('riders/:id/block')
-  blockRider(@Param('id') id: string) {
-    return this.adminService.blockRider(id);
+  @Patch('riders/:userId/block')
+  async blockRider(@Param('userId') userId: string) {
+    return this.adminService.blockRider(userId);
   }
 
-  @Patch('riders/:id/unblock')
-  unblockRider(@Param('id') id: string) {
-    return this.adminService.unblockRider(id);
+  @Patch('riders/:userId/unblock')
+  async unblockRider(@Param('userId') userId: string) {
+    return this.adminService.unblockRider(userId);
   }
 
-  // ── Captains/Drivers ──────────────────────────────────────────────────────
-
+  // Captains/Drivers
   @Get('captains')
-  getCaptains() {
+  async getCaptains() {
     return this.adminService.getCaptains();
   }
 
-  @Get('captains/:id')
-  async getCaptainById(@Param('id') id: string) {
-    return this.adminService.getCaptainById(id);
+  @Get('captains/:captainId')
+  async getCaptainById(@Param('captainId') captainId: string) {
+    const captain = await this.adminService.getCaptainById(captainId);
+    if (!captain) {
+      throw new NotFoundException('Captain not found');
+    }
+    return captain;
   }
 
-  @Patch('captains/:id/document')
-  updateCaptainDocument(
-    @Param('id') id: string,
-    @Body() dto: UpdateCaptainDocumentDto,
+  @Patch('captains/:captainId/document')
+  async updateCaptainDocument(
+    @Param('captainId') captainId: string,
+    @Body() body: { status: DocumentStatus; rejectionReason?: string },
   ) {
-    return this.adminService.updateCaptainDocument(id, dto);
+    const result = await this.adminService.updateCaptainDocument(
+      captainId,
+      body,
+    );
+    if (!result) {
+      throw new NotFoundException('Captain or documents not found');
+    }
+    return result;
   }
 
-  // ── Rides ─────────────────────────────────────────────────────────────────
-
+  // Rides
   @Get('rides')
-  getAllRides() {
+  async getAllRides() {
     return this.adminService.getAllRides();
   }
 
+  // Payments
   @Get('payments')
-  getPayments() {
+  async getPayments() {
     return this.adminService.getPayments();
   }
 
   @Get('payments/trend')
-  getPaymentsTrend() {
+  async getPaymentsTrend() {
     return this.adminService.getPaymentsTrend();
+  }
+
+  // Profile
+  @Get('profile')
+  async getProfile(@Req() req: AuthenticatedRequest) {
+    const userId = req.user.id;
+    return this.adminService.getProfile(userId);
+  }
+
+  @Patch('profile')
+  async updateProfile(
+    @Req() req: AuthenticatedRequest,
+    @Body() updateDto: UpdateAdminProfileDto,
+  ) {
+    const userId = req.user.id;
+    return this.adminService.updateProfile(userId, updateDto);
+  }
+
+  @Post('profile/photo')
+  @UseInterceptors(FileInterceptor('photo'))
+  async updateProfilePhoto(
+    @Req() req: AuthenticatedRequest,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    const userId = req.user.id;
+    return this.adminService.updateProfilePhoto(userId, file);
   }
 }
