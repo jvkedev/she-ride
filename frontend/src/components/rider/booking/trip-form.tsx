@@ -210,7 +210,7 @@ export default function TripForm({
 
           currentLocationLabel="Use current location"
 
-          autoLocateOnMount={!isTracking}
+          autoLocateOnMount={false}
 
         />
 

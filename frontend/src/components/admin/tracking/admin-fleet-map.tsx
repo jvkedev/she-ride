@@ -13,9 +13,10 @@ import MapBoundsFitter from "@/components/maps/map-bounds-fitter";
 import MapController from "@/components/maps/map-controller";
 import MapZoomControls from "@/components/maps/map-zoom-controls";
 import { filterValidLatLngs } from "@/lib/maps/map-camera";
+import { MAP_INDIA_OVERVIEW_CENTER } from "@/lib/maps/map-defaults";
 import { cn } from "@/lib/utils";
 
-const DEFAULT: [number, number] = [28.6139, 77.209];
+const DEFAULT: [number, number] = MAP_INDIA_OVERVIEW_CENTER;
 
 type ActiveRideRoute = {
   id: string;

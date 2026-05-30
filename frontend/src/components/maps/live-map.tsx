@@ -29,7 +29,9 @@ import {
 import { useCaptainStore } from "@/store/captain.store";
 import { rideStatusToCameraMode } from "@/lib/maps/map-camera";
 
-const DEFAULT: [number, number] = [28.6139, 77.209];
+import { MAP_INDIA_OVERVIEW_CENTER } from "@/lib/maps/map-defaults";
+
+const DEFAULT: [number, number] = MAP_INDIA_OVERVIEW_CENTER;
 
 function createVehicleIcon(vehicleType?: string) {
   const emoji =

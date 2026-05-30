@@ -6,12 +6,14 @@ import {
   subscribeLiveLocation,
   type GeolocationResult,
   type LocationFetchMode,
+  type LocationSource,
 } from "@/lib/maps/geolocation";
 
 export type LiveLocationState = {
   latitude: number;
   longitude: number;
   accuracy: number;
+  source: LocationSource;
   isLiveGps: boolean;
   updatedAt: number;
 };
@@ -21,7 +23,8 @@ function toState(result: GeolocationResult): LiveLocationState {
     latitude: result.latitude,
     longitude: result.longitude,
     accuracy: result.accuracy,
-    isLiveGps: result.accuracy <= 250,
+    source: result.source,
+    isLiveGps: result.source === "gps" && result.accuracy <= 250,
     updatedAt: Date.now(),
   };
 }

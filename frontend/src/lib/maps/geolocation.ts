@@ -1,11 +1,21 @@
+export type LocationSource = "gps" | "cached-gps" | "network" | "ip";
+
 export type GeolocationResult = {
   latitude: number;
   longitude: number;
   accuracy: number;
-  source: "cached" | "low-accuracy" | "high-accuracy" | "watch";
+  source: LocationSource;
+  timestamp: number;
 };
 
 export type LocationFetchMode = "live" | "balanced";
+
+export type GetCurrentLocationOptions = {
+  overallTimeoutMs?: number;
+  mode?: LocationFetchMode;
+  /** When false (default for pickup), never use network/IP fallbacks. */
+  allowApproximateFallback?: boolean;
+};
 
 /** Thrown when geolocation fails; `code` matches GeolocationPositionError. */
 export class GeolocationFailure extends Error {
@@ -26,9 +36,76 @@ export type GeolocationPermissionState =
 
 const LOG_PREFIX = "[SheRide][geolocation]";
 
-/** IP/network fixes are often >1km; GPS fixes are usually <100m. */
-const LIVE_GPS_MAX_ACCURACY_M = 250;
-const BALANCED_ACCEPT_ACCURACY_M = 150;
+/** Pickup/SOS: reject fixes worse than this. */
+export const POOR_ACCURACY_M = 1000;
+
+/** Ideal accuracy before early return. */
+const TARGET_GPS_ACCURACY_M = 80;
+
+/** Max accuracy to accept for pickup (live mode). */
+const LIVE_MAX_ACCEPT_ACCURACY_M = 500;
+
+/** Minimum time to keep watching GPS before accepting a mediocre fix. */
+const LIVE_MIN_WATCH_MS = 12_000;
+
+const GPS_POSITION_OPTIONS: PositionOptions = {
+  enableHighAccuracy: true,
+  timeout: 30000,
+  maximumAge: 0,
+};
+
+const CACHED_GPS_OPTIONS: PositionOptions = {
+  enableHighAccuracy: true,
+  timeout: 15000,
+  maximumAge: 5 * 60 * 1000,
+};
+
+const NETWORK_POSITION_OPTIONS: PositionOptions = {
+  enableHighAccuracy: false,
+  timeout: 15000,
+  maximumAge: 0,
+};
+
+/**
+ * Browser/ISP defaults that appear when real GPS is unavailable (central Delhi).
+ * Reject these so we keep waiting for a real device fix.
+ */
+const SPOOFED_DEFAULT_COORDS: Array<[number, number]> = [
+  [28.6139, 77.209], // old app default (India Gate)
+  [28.593, 77.2197], // Lodhi Garden
+  [28.5925, 77.22],
+  [28.6129, 77.2295],
+  [28.7041, 77.1025], // common IP-geocode center (Connaught Place area)
+];
+
+export function getLocationSourceLabel(source: LocationSource): string {
+  switch (source) {
+    case "gps":
+      return "GPS Location";
+    case "cached-gps":
+      return "Cached GPS Location";
+    case "network":
+      return "Network Location";
+    case "ip":
+      return "IP Location";
+    default:
+      return "Unknown";
+  }
+}
+
+export function isSpoofedDefaultLocation(lat: number, lng: number): boolean {
+  return SPOOFED_DEFAULT_COORDS.some(
+    ([dLat, dLng]) =>
+      Math.abs(lat - dLat) < 0.008 && Math.abs(lng - dLng) < 0.008,
+  );
+}
+
+export function isAcceptablePickupFix(result: GeolocationResult): boolean {
+  if (result.source === "network" || result.source === "ip") return false;
+  if (result.accuracy > LIVE_MAX_ACCEPT_ACCURACY_M) return false;
+  if (isSpoofedDefaultLocation(result.latitude, result.longitude)) return false;
+  return true;
+}
 
 function log(message: string, data?: unknown) {
   if (process.env.NODE_ENV === "production") return;
@@ -57,7 +134,7 @@ export function getGeolocationErrorMessage(
     case 2:
       return "Location unavailable. Enable location services on your device and try again.";
     case 3:
-      return "Location request timed out. Move near a window, enable GPS/Wi‑Fi, or try again.";
+      return "Could not get a precise GPS fix. Enable GPS on your device, move near a window or outdoors, then tap Use current location again.";
     default:
       return error.message || "Could not determine your current location.";
   }
@@ -83,19 +160,52 @@ export async function queryGeolocationPermission(): Promise<GeolocationPermissio
   }
 }
 
+function classifyBrowserFix(
+  pos: GeolocationPosition,
+  requestedHighAccuracy: boolean,
+  maximumAgeMs: number,
+): LocationSource {
+  if (!requestedHighAccuracy) return "network";
+  if (maximumAgeMs > 0) return "cached-gps";
+
+  const accuracy = pos.coords.accuracy ?? 9999;
+  // Browsers often return Wi‑Fi/cell fixes through the high-accuracy API.
+  if (accuracy > 1500) return "network";
+
+  return "gps";
+}
+
 function readPosition(
   pos: GeolocationPosition,
-  source: GeolocationResult["source"],
+  requestedHighAccuracy: boolean,
+  maximumAgeMs: number,
 ): GeolocationResult | null {
   const latitude = Number(pos.coords.latitude);
   const longitude = Number(pos.coords.longitude);
   const accuracy = Number(pos.coords.accuracy ?? 9999);
+  const source = classifyBrowserFix(pos, requestedHighAccuracy, maximumAgeMs);
 
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
     return null;
   }
 
-  return { latitude, longitude, accuracy, source };
+  if (isSpoofedDefaultLocation(latitude, longitude)) {
+    logWarn("rejecting known default/spoof coordinates", {
+      latitude,
+      longitude,
+      accuracyM: Math.round(accuracy),
+      source,
+    });
+    return null;
+  }
+
+  return {
+    latitude,
+    longitude,
+    accuracy,
+    source,
+    timestamp: pos.timestamp || Date.now(),
+  };
 }
 
 function isBetterReading(
@@ -103,77 +213,89 @@ function isBetterReading(
   current: GeolocationResult | null,
 ): boolean {
   if (!current) return true;
+  if (next.source === "gps" && current.source !== "gps") return true;
+  if (next.source !== "gps" && current.source === "gps") return false;
   return next.accuracy < current.accuracy;
 }
 
-function isLiveGpsQuality(accuracy: number): boolean {
-  return accuracy <= LIVE_GPS_MAX_ACCURACY_M;
+function logLocationResult(result: GeolocationResult, context: string) {
+  log(context, {
+    latitude: result.latitude,
+    longitude: result.longitude,
+    accuracyM: Math.round(result.accuracy),
+    source: result.source,
+    sourceLabel: getLocationSourceLabel(result.source),
+    timestamp: result.timestamp,
+  });
 }
 
-type PositionAttemptOptions = {
-  enableHighAccuracy: boolean;
-  timeoutMs: number;
-  maximumAgeMs: number;
-};
-
 function getCurrentPositionOnce(
-  options: PositionAttemptOptions,
-  source: GeolocationResult["source"],
+  options: PositionOptions,
+  sourceOverride?: LocationSource,
 ): Promise<GeolocationResult> {
   return new Promise((resolve, reject) => {
     log("getCurrentPosition attempt", {
-      source,
       enableHighAccuracy: options.enableHighAccuracy,
-      timeoutMs: options.timeoutMs,
-      maximumAgeMs: options.maximumAgeMs,
+      timeout: options.timeout,
+      maximumAge: options.maximumAge,
+      sourceOverride,
     });
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const result = readPosition(pos, source);
+        let result = readPosition(
+          pos,
+          options.enableHighAccuracy ?? false,
+          options.maximumAge ?? 0,
+        );
         if (!result) {
-          reject(new Error("Invalid coordinates from browser."));
+          reject(new Error("Invalid or spoofed coordinates from browser."));
           return;
         }
-        log("getCurrentPosition success", result);
+        if (sourceOverride) {
+          result = { ...result, source: sourceOverride };
+        }
+        logLocationResult(result, "getCurrentPosition success");
         resolve(result);
       },
       (err) => {
         logWarn("getCurrentPosition failed", {
           code: err.code,
           message: err.message,
-          source,
         });
         reject(err);
       },
-      {
-        enableHighAccuracy: options.enableHighAccuracy,
-        timeout: options.timeoutMs,
-        maximumAge: options.maximumAgeMs,
-      },
+      options,
     );
   });
 }
 
-async function watchForBestPosition(options: {
-  overallTimeoutMs: number;
-  targetAccuracyM: number;
-  minWatchMs: number;
-  maxStaleAccuracyM: number;
-  initialBest: GeolocationResult | null;
-}): Promise<GeolocationResult | null> {
-  const {
-    overallTimeoutMs,
-    targetAccuracyM,
-    minWatchMs,
-    maxStaleAccuracyM,
-    initialBest,
-  } = options;
+function isAcceptableLiveFix(
+  result: GeolocationResult,
+  elapsedMs: number,
+): boolean {
+  if (!isAcceptablePickupFix(result)) return false;
+  if (result.accuracy <= TARGET_GPS_ACCURACY_M) return true;
+  if (
+    result.accuracy <= LIVE_MAX_ACCEPT_ACCURACY_M &&
+    elapsedMs >= LIVE_MIN_WATCH_MS &&
+    result.source === "gps"
+  ) {
+    return true;
+  }
+  return false;
+}
 
-  if (overallTimeoutMs < 2000) return initialBest;
+/**
+ * High-accuracy GPS watch — keeps refining; rejects network/spoofed fixes.
+ */
+async function watchForGpsFix(
+  overallTimeoutMs: number,
+): Promise<GeolocationResult | null> {
+  if (overallTimeoutMs < 3000) return null;
 
   return new Promise((resolve) => {
-    let best = initialBest;
+    let best: GeolocationResult | null = null;
     let watchId: number | null = null;
     let settled = false;
     let overallTimer: ReturnType<typeof setTimeout> | undefined;
@@ -190,18 +312,23 @@ async function watchForBestPosition(options: {
     const considerFinish = () => {
       if (!best) return;
       const elapsed = Date.now() - startedAt;
-      if (elapsed >= minWatchMs && best.accuracy <= targetAccuracyM) {
+      if (isAcceptableLiveFix(best, elapsed)) {
         finish(best);
       }
     };
 
     const onPosition = (pos: GeolocationPosition) => {
-      const candidate = readPosition(pos, "watch");
+      const candidate = readPosition(pos, true, 0);
       if (!candidate) return;
-      if (candidate.accuracy > maxStaleAccuracyM && best) return;
+
+      if (candidate.source === "network") {
+        logWarn("ignoring network-classified fix during GPS watch", candidate);
+        return;
+      }
+
       if (isBetterReading(candidate, best)) {
         best = candidate;
-        log("watch position", best);
+        logLocationResult(best, "watchPosition update");
       }
       considerFinish();
     };
@@ -214,197 +341,156 @@ async function watchForBestPosition(options: {
           message: err.message,
         });
       },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 60000,
-      },
+      GPS_POSITION_OPTIONS,
     );
 
-    getCurrentPositionOnce(
-      {
-        enableHighAccuracy: true,
-        timeoutMs: Math.min(25000, overallTimeoutMs),
-        maximumAgeMs: 0,
-      },
-      "high-accuracy",
-    )
+    getCurrentPositionOnce(GPS_POSITION_OPTIONS)
       .then((result) => {
-        if (isBetterReading(result, best)) best = result;
+        if (result.source !== "network" && isBetterReading(result, best)) {
+          best = result;
+        }
         considerFinish();
       })
       .catch(() => {});
 
-    overallTimer = setTimeout(() => finish(best), overallTimeoutMs);
+    overallTimer = setTimeout(() => {
+      if (best && isAcceptableLiveFix(best, Date.now() - startedAt)) {
+        finish(best);
+        return;
+      }
+      logWarn("GPS watch ended without acceptable fix", {
+        bestAccuracyM: best ? Math.round(best.accuracy) : null,
+        bestSource: best?.source,
+      });
+      finish(null);
+    }, overallTimeoutMs);
   });
 }
 
-/** GPS-first: no cached/IP shortcut; waits for device GPS when possible. */
-async function getLiveLocation(
-  overallTimeoutMs: number,
-): Promise<GeolocationResult> {
-  const deadline = Date.now() + overallTimeoutMs;
-  let best: GeolocationResult | null = null;
+async function fetchIpFallbackLocation(): Promise<GeolocationResult | null> {
+  log("attempting IP fallback (last resort only)");
+  try {
+    const res = await fetch("https://ipapi.co/json/", {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
 
-  const recordBest = (candidate: GeolocationResult) => {
-    if (isBetterReading(candidate, best)) {
-      best = candidate;
-      log("live best updated", best);
-    }
-  };
+    const data = (await res.json()) as {
+      latitude?: number;
+      longitude?: number;
+    };
 
-  const timeLeft = () => Math.max(deadline - Date.now(), 0);
-
-  const tryGps = async (
-    enableHighAccuracy: boolean,
-    source: GeolocationResult["source"],
-  ) => {
-    const remaining = timeLeft();
-    if (remaining < 1500) return null;
-    try {
-      const result = await getCurrentPositionOnce(
-        {
-          enableHighAccuracy,
-          timeoutMs: Math.min(enableHighAccuracy ? 28000 : 18000, remaining),
-          maximumAgeMs: 0,
-        },
-        source,
-      );
-      recordBest(result);
-      if (isLiveGpsQuality(result.accuracy)) return result;
-      return result;
-    } catch (err) {
-      if (
-        (err instanceof GeolocationPositionError ||
-          err instanceof GeolocationFailure) &&
-        err.code === 1
-      ) {
-        throw err;
-      }
+    if (
+      typeof data.latitude !== "number" ||
+      typeof data.longitude !== "number"
+    ) {
       return null;
     }
-  };
 
-  log("getLiveLocation: GPS-first acquisition");
+    if (isSpoofedDefaultLocation(data.latitude, data.longitude)) {
+      logWarn("IP fallback returned known Delhi default — discarding");
+      return null;
+    }
 
-  const watchResult = await watchForBestPosition({
-    overallTimeoutMs: Math.min(35000, timeLeft()),
-    targetAccuracyM: 80,
-    minWatchMs: 2000,
-    maxStaleAccuracyM: 5000,
-    initialBest: null,
-  });
+    const result: GeolocationResult = {
+      latitude: data.latitude,
+      longitude: data.longitude,
+      accuracy: 10_000,
+      source: "ip",
+      timestamp: Date.now(),
+    };
 
-  if (watchResult && isLiveGpsQuality(watchResult.accuracy)) {
-    log("using live GPS watch", watchResult);
+    logLocationResult(result, "IP fallback success");
+    return result;
+  } catch (err) {
+    logWarn("IP fallback failed", err);
+    return null;
+  }
+}
+
+/** Pickup/SOS: GPS only — no network, cached, or IP shortcuts. */
+async function acquireLiveGpsOnly(
+  overallTimeoutMs: number,
+): Promise<GeolocationResult> {
+  log("live mode: GPS-only (no network/IP fallbacks)");
+
+  const gpsTimeout = Math.min(overallTimeoutMs, 60_000);
+
+  const watchResult = await watchForGpsFix(gpsTimeout);
+  if (watchResult) {
+    logLocationResult(watchResult, "live GPS fix accepted");
     return watchResult;
   }
-  if (watchResult) recordBest(watchResult);
 
-  const highAcc = await tryGps(true, "high-accuracy");
-  if (highAcc && isLiveGpsQuality(highAcc.accuracy)) {
-    log("using live high-accuracy fix", highAcc);
-    return highAcc;
+  try {
+    const direct = await getCurrentPositionOnce(GPS_POSITION_OPTIONS);
+    if (direct.source !== "network" && isAcceptablePickupFix(direct)) {
+      logLocationResult(direct, "live direct GPS fix accepted");
+      return direct;
+    }
+    logWarn("direct GPS fix rejected", direct);
+  } catch (err) {
+    if (
+      err instanceof GeolocationPositionError &&
+      err.code === 1
+    ) {
+      throw err;
+    }
   }
 
-  if (best && isLiveGpsQuality(best.accuracy)) {
-    log("using best live GPS", best);
-    return best;
-  }
-
-  const lowAcc = await tryGps(false, "low-accuracy");
-  if (lowAcc && isLiveGpsQuality(lowAcc.accuracy)) {
-    log("using live low-accuracy GPS-quality fix", lowAcc);
-    return lowAcc;
-  }
-
-  if (best) {
-    logWarn("using approximate fix (enable GPS for better accuracy)", best);
-    return best;
-  }
-
-  throw new GeolocationFailure(3, getGeolocationErrorMessage({ code: 3 }));
+  throw new GeolocationFailure(
+    3,
+    "Could not get a precise GPS fix. Turn on Location/GPS in Windows settings, allow browser location access, move outdoors, then try again.",
+  );
 }
 
-/** Faster reads for map preview; may use recent cache. */
-async function getBalancedLocation(
+/** Map preview: GPS first, then cached/network/IP only if explicitly allowed. */
+async function acquireWithFallbacks(
   overallTimeoutMs: number,
+  allowApproximateFallback: boolean,
 ): Promise<GeolocationResult> {
-  const deadline = Date.now() + overallTimeoutMs;
-  let best: GeolocationResult | null = null;
+  const gps = await watchForGpsFix(Math.min(overallTimeoutMs, 30_000));
+  if (gps) return gps;
 
-  const recordBest = (candidate: GeolocationResult) => {
-    if (isBetterReading(candidate, best)) best = candidate;
-  };
+  if (!allowApproximateFallback) {
+    throw new GeolocationFailure(3, getGeolocationErrorMessage({ code: 3 }));
+  }
 
-  const timeLeft = () => Math.max(deadline - Date.now(), 0);
+  try {
+    const cached = await getCurrentPositionOnce(CACHED_GPS_OPTIONS, "cached-gps");
+    if (isAcceptablePickupFix(cached)) return cached;
+  } catch {
+    /* continue */
+  }
 
-  const tryOnce = async (
-    attempt: PositionAttemptOptions,
-    source: GeolocationResult["source"],
-  ): Promise<GeolocationResult | null> => {
-    const remaining = timeLeft();
-    if (remaining < 1000) return null;
-    try {
-      const result = await getCurrentPositionOnce(
-        { ...attempt, timeoutMs: Math.min(attempt.timeoutMs, remaining) },
-        source,
-      );
-      recordBest(result);
-      return result;
-    } catch (err) {
-      if (
-        (err instanceof GeolocationPositionError ||
-          err instanceof GeolocationFailure) &&
-        err.code === 1
-      ) {
-        throw err;
-      }
-      return null;
-    }
-  };
+  try {
+    const network = await getCurrentPositionOnce(
+      NETWORK_POSITION_OPTIONS,
+      "network",
+    );
+    logLocationResult(network, "balanced network fallback");
+    return network;
+  } catch {
+    /* continue */
+  }
 
-  const cached = await tryOnce(
-    {
-      enableHighAccuracy: false,
-      timeoutMs: 10000,
-      maximumAgeMs: 2 * 60 * 1000,
-    },
-    "cached",
-  );
-  if (cached && cached.accuracy <= BALANCED_ACCEPT_ACCURACY_M) return cached;
-
-  const refined = await watchForBestPosition({
-    overallTimeoutMs: timeLeft(),
-    targetAccuracyM: 120,
-    minWatchMs: 1500,
-    maxStaleAccuracyM: 8000,
-    initialBest: best,
-  });
-  if (refined) return refined;
-  if (best) return best;
-
-  const last = await tryOnce(
-    {
-      enableHighAccuracy: false,
-      timeoutMs: 12000,
-      maximumAgeMs: 5 * 60 * 1000,
-    },
-    "cached",
-  );
-  if (last) return last;
+  const ip = await fetchIpFallbackLocation();
+  if (ip) return ip;
 
   throw new GeolocationFailure(3, getGeolocationErrorMessage({ code: 3 }));
 }
 
 /**
- * Primary API — use `mode: "live"` for pickup & SOS (GPS, not IP).
+ * Primary API — use `mode: "live"` for pickup & SOS (strict GPS, no Delhi IP/network).
  */
-export async function getCurrentLocation(options?: {
-  overallTimeoutMs?: number;
-  mode?: LocationFetchMode;
-}): Promise<GeolocationResult> {
-  const { overallTimeoutMs = 45000, mode = "live" } = options ?? {};
+export async function getCurrentLocation(
+  options?: GetCurrentLocationOptions,
+): Promise<GeolocationResult> {
+  const {
+    overallTimeoutMs = 60_000,
+    mode = "live",
+    allowApproximateFallback = mode !== "live",
+  } = options ?? {};
 
   if (!isGeolocationSupported()) {
     throw new Error(
@@ -417,12 +503,18 @@ export async function getCurrentLocation(options?: {
     throw new GeolocationFailure(1, getGeolocationErrorMessage({ code: 1 }));
   }
 
-  log("getCurrentLocation started", { permission, mode });
+  log("getCurrentLocation started", {
+    permission,
+    mode,
+    overallTimeoutMs,
+    allowApproximateFallback,
+  });
 
   if (mode === "live") {
-    return getLiveLocation(overallTimeoutMs);
+    return acquireLiveGpsOnly(overallTimeoutMs);
   }
-  return getBalancedLocation(overallTimeoutMs);
+
+  return acquireWithFallbacks(overallTimeoutMs, allowApproximateFallback);
 }
 
 /** Continuous high-accuracy GPS updates (ride tracking, SOS). */
@@ -438,8 +530,11 @@ export function subscribeLiveLocation(
 
   const watchId = navigator.geolocation.watchPosition(
     (pos) => {
-      const result = readPosition(pos, "watch");
-      if (result) onUpdate(result);
+      const result = readPosition(pos, true, 0);
+      if (result && result.source !== "network") {
+        logLocationResult(result, "subscribeLiveLocation update");
+        onUpdate(result);
+      }
     },
     (err) => {
       logWarn("subscribeLiveLocation error", {
@@ -448,22 +543,13 @@ export function subscribeLiveLocation(
       });
       onError?.(err);
     },
-    {
-      enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 60000,
-    },
+    GPS_POSITION_OPTIONS,
   );
 
-  getCurrentPositionOnce(
-    {
-      enableHighAccuracy: true,
-      timeoutMs: 25000,
-      maximumAgeMs: 0,
-    },
-    "high-accuracy",
-  )
-    .then(onUpdate)
+  getCurrentPositionOnce(GPS_POSITION_OPTIONS)
+    .then((result) => {
+      if (result.source !== "network") onUpdate(result);
+    })
     .catch(() => {});
 
   return () => {
@@ -477,7 +563,8 @@ export function watchCurrentPosition(options?: {
   timeoutMs?: number;
 }): Promise<GeolocationResult> {
   return getCurrentLocation({
-    overallTimeoutMs: options?.timeoutMs ?? 45000,
+    overallTimeoutMs: options?.timeoutMs ?? 60_000,
     mode: options?.highAccuracy === false ? "balanced" : "live",
+    allowApproximateFallback: options?.highAccuracy === false,
   });
 }

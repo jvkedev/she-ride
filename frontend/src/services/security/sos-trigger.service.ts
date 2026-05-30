@@ -19,7 +19,8 @@ export async function triggerSosWithLiveLocation(
   if (latitude == null || longitude == null) {
     const coords = await getCurrentLocation({
       mode: "live",
-      overallTimeoutMs: 45000,
+      overallTimeoutMs: 60_000,
+      allowApproximateFallback: false,
     });
     latitude = coords.latitude;
     longitude = coords.longitude;

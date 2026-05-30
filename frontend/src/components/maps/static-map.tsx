@@ -1,6 +1,6 @@
 "use client";
 import "leaflet/dist/leaflet.css";
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useMemo } from "react";
 import {
   MapContainer,
   Marker,
@@ -17,18 +17,11 @@ import {
   normalizeLatLng,
   type MapCameraMode,
 } from "@/lib/maps/map-camera";
-import { getCurrentLocation } from "@/lib/maps/geolocation";
-
-const DEFAULT: [number, number] = [28.6139, 77.209];
-
-function createRiderIcon() {
-  return L.divIcon({
-    className: "",
-    html: `<div style="width:18px;height:18px;background:#ec4899;border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.35);"></div>`,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
-  });
-}
+import {
+  MAP_INDIA_OVERVIEW_CENTER,
+  MAP_INDIA_OVERVIEW_ZOOM,
+  MAP_LOCATION_ZOOM,
+} from "@/lib/maps/map-defaults";
 
 function createPickupIcon() {
   return L.divIcon({
@@ -67,12 +60,8 @@ export default function StaticMap({
   routeDistanceKm,
   routeDurationMin,
 }: StaticMapProps) {
-  const [position, setPosition] = useState<[number, number]>(DEFAULT);
-  const [hasRealGps, setHasRealGps] = useState(false);
-  const gpsRequestRef = useRef(0);
-  const riderIcon = useRef(createRiderIcon());
-  const pickupIcon = useRef(createPickupIcon());
-  const dropIcon = useRef(createDropIcon());
+  const pickupIcon = useMemo(() => createPickupIcon(), []);
+  const dropIcon = useMemo(() => createDropIcon(), []);
 
   const validPickup = normalizeLatLng(pickup) ?? undefined;
   const validDrop = normalizeLatLng(drop) ?? undefined;
@@ -81,8 +70,6 @@ export default function StaticMap({
     () => filterValidLatLngs([validPickup, validDrop].filter(Boolean)),
     [validPickup, validDrop],
   );
-
-  const gpsPoint = useMemo(() => normalizeLatLng(position), [position]);
 
   const cameraMode: MapCameraMode = useMemo(() => {
     if (validPickup && validDrop) return "pickup-drop-preview";
@@ -94,49 +81,25 @@ export default function StaticMap({
 
   const cameraKey = useMemo(
     () =>
-      `${validPickup?.join(",") ?? ""}|${validDrop?.join(",") ?? ""}|${gpsPoint?.join(",") ?? ""}|${safeRoute.length}`,
-    [validPickup, validDrop, gpsPoint, safeRoute.length],
+      `${validPickup?.join(",") ?? ""}|${validDrop?.join(",") ?? ""}|${safeRoute.length}`,
+    [validPickup, validDrop, safeRoute.length],
   );
 
-  useEffect(() => {
-    if (validPickup) {
-      setHasRealGps(false);
-      return;
-    }
-
-    const requestId = ++gpsRequestRef.current;
-    let cancelled = false;
-
-    getCurrentLocation({
-      overallTimeoutMs: 30000,
-      mode: "balanced",
-    })
-      .then((coords) => {
-        if (cancelled || requestId !== gpsRequestRef.current) return;
-        const pt = normalizeLatLng([coords.latitude, coords.longitude]);
-        if (!pt) return;
-        setPosition(pt);
-        setHasRealGps(true);
-      })
-      .catch(() => {});
-
-    return () => {
-      cancelled = true;
-    };
-  }, [validPickup]);
-
-  const showRiderDot =
-    hasRealGps &&
-    gpsPoint != null &&
-    (!validPickup ||
-      Math.abs(gpsPoint[0] - validPickup[0]) > 0.0003 ||
-      Math.abs(gpsPoint[1] - validPickup[1]) > 0.0003);
+  const mapCenter = validPickup ?? validDrop ?? MAP_INDIA_OVERVIEW_CENTER;
+  const mapZoom =
+    validPickup || validDrop ? MAP_LOCATION_ZOOM : MAP_INDIA_OVERVIEW_ZOOM;
 
   return (
     <div className="relative h-full w-full">
+      {!validPickup && !validDrop && (
+        <div className="pointer-events-none absolute left-4 top-4 z-20 rounded-full border border-white bg-white/90 px-3 py-2 text-xs font-medium text-neutral-700 shadow-md">
+          Tap &quot;Use current location&quot; to set pickup on the map
+        </div>
+      )}
+
       <MapContainer
-        center={validPickup ?? DEFAULT}
-        zoom={validPickup ? 16 : 13}
+        center={mapCenter}
+        zoom={mapZoom}
         className="h-full w-full rounded-2xl"
         style={{ height: "100%", width: "100%", minHeight: 320 }}
         dragging
@@ -156,33 +119,20 @@ export default function StaticMap({
         />
 
         {validPickup && (
-          <Marker position={validPickup} icon={pickupIcon.current}>
+          <Marker position={validPickup} icon={pickupIcon}>
             <Popup>Pickup</Popup>
           </Marker>
         )}
 
         {validDrop && (
-          <Marker position={validDrop} icon={dropIcon.current}>
+          <Marker position={validDrop} icon={dropIcon}>
             <Popup>Drop-off</Popup>
           </Marker>
         )}
 
-        {showRiderDot && gpsPoint && (
-          <Marker position={gpsPoint} icon={riderIcon.current}>
-            <Popup>Your location</Popup>
-          </Marker>
-        )}
-
-        {(cameraPoints.length > 0 ||
-          (hasRealGps && gpsPoint != null && !validPickup)) && (
+        {cameraPoints.length > 0 && (
           <MapBoundsFitter
-            points={
-              cameraPoints.length > 0
-                ? cameraPoints
-                : gpsPoint
-                  ? [gpsPoint]
-                  : []
-            }
+            points={cameraPoints}
             route={safeRoute}
             mode={cameraMode}
             cameraKey={cameraKey}
@@ -195,7 +145,7 @@ export default function StaticMap({
       </MapContainer>
 
       {typeof nearbyCaptains === "number" && (
-        <div className="pointer-events-none absolute left-4 top-4 z-20 rounded-full border border-white bg-white/90 px-3 py-2 text-xs font-semibold text-neutral-900 shadow-md">
+        <div className="pointer-events-none absolute left-4 bottom-4 z-20 rounded-full border border-white bg-white/90 px-3 py-2 text-xs font-semibold text-neutral-900 shadow-md lg:top-4 lg:bottom-auto">
           {nearbyCaptains > 0
             ? `${nearbyCaptains} captains nearby`
             : "No captains nearby"}
