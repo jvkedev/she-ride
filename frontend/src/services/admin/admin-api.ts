@@ -72,7 +72,11 @@ export async function updateDriverKyc(
   captainId: string,
   body: {
     status: "APPROVED" | "REJECTED";
-    documentKey?: "driving_license" | "rc_registration" | "aadhaar" | "selfie";
+    documentKey:
+      | "driving_license"
+      | "vehicle_rc"
+      | "vehicle_insurance"
+      | "government_id";
     rejectionReason?: string;
   },
 ): Promise<AdminDriverDetail> {

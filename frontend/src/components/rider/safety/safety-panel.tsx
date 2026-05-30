@@ -1,11 +1,12 @@
-import { Phone, ShieldAlert, ShieldCheck } from "lucide-react";
+"use client";
 
-import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { Loader2, Phone, ShieldAlert, ShieldCheck } from "lucide-react";
 
-const contacts = [
-  { name: "Mom", phone: "+91 98765 43210" },
-  { name: "Emergency contact", phone: "+91 91234 56789" },
-];
+import SosTriggerButton from "@/components/shared/safety/sos-trigger-button";
+import { getRiderActiveRide } from "@/services/rides/rides.service";
+import { getRiderProfile } from "@/services/profile/profile.service";
 
 const tips = [
   "Share your trip with a trusted contact before every ride.",
@@ -14,6 +15,31 @@ const tips = [
 ];
 
 export default function SafetyPanel() {
+  const [rideId, setRideId] = useState<string | undefined>();
+  const [contactName, setContactName] = useState<string | null>(null);
+  const [contactPhone, setContactPhone] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      getRiderProfile().catch(() => null),
+      getRiderActiveRide().catch(() => null),
+    ]).then(([profile, active]) => {
+      if (profile?.emergencyContactName) {
+        setContactName(profile.emergencyContactName);
+      }
+      if (profile?.emergencyContactPhone) {
+        setContactPhone(profile.emergencyContactPhone);
+      }
+      if (active?.rideId) setRideId(active.rideId);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  const contacts =
+    contactName && contactPhone
+      ? [{ name: contactName, phone: contactPhone }]
+      : [];
+
   return (
     <>
       <section className="rounded-xl border border-red-100 bg-red-50/50 p-5">
@@ -24,44 +50,63 @@ export default function SafetyPanel() {
           <div className="flex-1">
             <h2 className="font-semibold text-neutral-900">Emergency SOS</h2>
             <p className="text-sm text-neutral-600">
-              Instantly alert emergency contacts and support
+              Alerts support with your live GPS
+              {rideId ? " for your active trip" : ""}
             </p>
           </div>
         </div>
-        <Button
-          variant="destructive"
-          className="mt-4 h-11 w-full rounded-lg font-semibold"
-        >
-          Trigger SOS
-        </Button>
+        <SosTriggerButton className="mt-4" rideId={rideId} />
       </section>
 
       <section className="rounded-xl border border-neutral-200 bg-white p-5">
-        <h2 className="text-sm font-semibold text-neutral-900">
-          Emergency contacts
-        </h2>
-        <ul className="mt-4 space-y-3">
-          {contacts.map((contact) => (
-            <li
-              key={contact.phone}
-              className="flex items-center justify-between rounded-lg border border-neutral-100 px-3 py-3"
-            >
-              <div>
-                <p className="text-sm font-medium text-neutral-900">
-                  {contact.name}
-                </p>
-                <p className="text-xs text-neutral-500">{contact.phone}</p>
-              </div>
-              <button
-                type="button"
-                aria-label={`Call ${contact.name}`}
-                className="rounded-lg p-2 text-neutral-600 transition hover:bg-neutral-100"
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-neutral-900">
+            Emergency contacts
+          </h2>
+          <Link
+            href="/rider/profile"
+            className="text-xs font-medium text-primary hover:underline"
+          >
+            Edit
+          </Link>
+        </div>
+        {loading ? (
+          <div className="mt-4 flex items-center gap-2 text-sm text-neutral-400">
+            <Loader2 className="size-4 animate-spin" />
+            Loading...
+          </div>
+        ) : contacts.length === 0 ? (
+          <p className="mt-4 text-sm text-neutral-500">
+            Add an emergency contact in your{" "}
+            <Link href="/rider/profile" className="text-primary underline">
+              profile
+            </Link>
+            .
+          </p>
+        ) : (
+          <ul className="mt-4 space-y-3">
+            {contacts.map((contact) => (
+              <li
+                key={contact.phone}
+                className="flex items-center justify-between rounded-lg border border-neutral-100 px-3 py-3"
               >
-                <Phone className="size-4" />
-              </button>
-            </li>
-          ))}
-        </ul>
+                <div>
+                  <p className="text-sm font-medium text-neutral-900">
+                    {contact.name}
+                  </p>
+                  <p className="text-xs text-neutral-500">{contact.phone}</p>
+                </div>
+                <a
+                  href={`tel:${contact.phone.replace(/\s/g, "")}`}
+                  aria-label={`Call ${contact.name}`}
+                  className="rounded-lg p-2 text-neutral-600 transition hover:bg-neutral-100"
+                >
+                  <Phone className="size-4" />
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="rounded-xl border border-neutral-200 bg-white p-5">

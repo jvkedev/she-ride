@@ -1,30 +1,30 @@
 "use client";
 import "leaflet/dist/leaflet.css";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import {
   MapContainer,
   Marker,
   Popup,
   TileLayer,
-  Polyline,
-  useMap,
 } from "react-leaflet";
 import L from "leaflet";
 import MapController from "@/components/maps/map-controller";
 import MapZoomControls from "@/components/maps/map-zoom-controls";
+import MapBoundsFitter from "@/components/maps/map-bounds-fitter";
+import RoutePolyline from "@/components/maps/route-polyline";
+import {
+  filterValidLatLngs,
+  normalizeLatLng,
+  type MapCameraMode,
+} from "@/lib/maps/map-camera";
+import { getCurrentLocation } from "@/lib/maps/geolocation";
 
 const DEFAULT: [number, number] = [28.6139, 77.209];
 
 function createRiderIcon() {
   return L.divIcon({
     className: "",
-    html: `<div style="
-      width:18px;height:18px;
-      background:#ec4899;
-      border:3px solid white;
-      border-radius:50%;
-      box-shadow:0 2px 6px rgba(0,0,0,0.35);
-    "></div>`,
+    html: `<div style="width:18px;height:18px;background:#ec4899;border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.35);"></div>`,
     iconSize: [18, 18],
     iconAnchor: [9, 9],
   });
@@ -33,169 +33,163 @@ function createRiderIcon() {
 function createPickupIcon() {
   return L.divIcon({
     className: "",
-    html: `<div style="
-      width:18px;height:18px;
-      background:#2563eb;
-      border:3px solid white;
-      border-radius:50%;
-      box-shadow:0 2px 6px rgba(0,0,0,0.25);
-    "></div>`,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
+    html: `<div style="width:20px;height:20px;background:#2563eb;border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>`,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
   });
 }
 
 function createDropIcon() {
   return L.divIcon({
     className: "",
-    html: `<div style="
-      width:18px;height:18px;
-      background:#10b981;
-      border:3px solid white;
-      border-radius:50%;
-      box-shadow:0 2px 6px rgba(0,0,0,0.25);
-    "></div>`,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
+    html: `<div style="width:20px;height:20px;background:#10b981;border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>`,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
   });
-}
-
-function MapPanner({
-  position,
-  hasRealGps,
-  active,
-}: {
-  position: [number, number];
-  hasRealGps: boolean;
-  active: boolean;
-}) {
-  const map = useMap();
-  const hasFlown = useRef(false);
-
-  useEffect(() => {
-    if (!hasRealGps || !active) return;
-    if (!Number.isFinite(position[0]) || !Number.isFinite(position[1])) return;
-
-    if (!hasFlown.current) {
-      const t = setTimeout(() => {
-        map.setView(position, 15, { animate: false });
-        hasFlown.current = true;
-      }, 300);
-      return () => clearTimeout(t);
-    }
-
-    map.panTo(position, { animate: true, duration: 0.5 });
-  }, [position, hasRealGps, active, map]);
-
-  return null;
 }
 
 interface StaticMapProps {
   pickup?: [number, number];
   drop?: [number, number];
   route?: [number, number][];
+  routeIsPreview?: boolean;
   nearbyCaptains?: number;
+  routeDistanceKm?: number;
+  routeDurationMin?: number;
 }
 
 export default function StaticMap({
   pickup,
   drop,
   route = [],
+  routeIsPreview = false,
   nearbyCaptains,
+  routeDistanceKm,
+  routeDurationMin,
 }: StaticMapProps) {
   const [position, setPosition] = useState<[number, number]>(DEFAULT);
   const [hasRealGps, setHasRealGps] = useState(false);
-  const [map, setMap] = useState<L.Map | null>(null);
-  const watchId = useRef<number | null>(null);
+  const gpsRequestRef = useRef(0);
   const riderIcon = useRef(createRiderIcon());
   const pickupIcon = useRef(createPickupIcon());
   const dropIcon = useRef(createDropIcon());
 
+  const validPickup = normalizeLatLng(pickup) ?? undefined;
+  const validDrop = normalizeLatLng(drop) ?? undefined;
+
+  const cameraPoints = useMemo(
+    () => filterValidLatLngs([validPickup, validDrop].filter(Boolean)),
+    [validPickup, validDrop],
+  );
+
+  const gpsPoint = useMemo(() => normalizeLatLng(position), [position]);
+
+  const cameraMode: MapCameraMode = useMemo(() => {
+    if (validPickup && validDrop) return "pickup-drop-preview";
+    if (validPickup || validDrop) return "single";
+    return "single";
+  }, [validPickup, validDrop]);
+
+  const safeRoute = useMemo(() => filterValidLatLngs(route), [route]);
+
+  const cameraKey = useMemo(
+    () =>
+      `${validPickup?.join(",") ?? ""}|${validDrop?.join(",") ?? ""}|${gpsPoint?.join(",") ?? ""}|${safeRoute.length}`,
+    [validPickup, validDrop, gpsPoint, safeRoute.length],
+  );
+
   useEffect(() => {
-    if (!navigator.geolocation) return;
-
-    watchId.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const lat = Number(pos.coords.latitude);
-        const lng = Number(pos.coords.longitude);
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-        setPosition([lat, lng]);
-        setHasRealGps(true);
-      },
-      (err) => console.error("GPS error:", err.message),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 3000 },
-    );
-
-    return () => {
-      if (watchId.current !== null) {
-        navigator.geolocation.clearWatch(watchId.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!map) return;
-
-    if (pickup && drop) {
-      const bounds = L.latLngBounds([pickup, drop]);
-      map.fitBounds(bounds, { padding: [50, 50] });
+    if (validPickup) {
+      setHasRealGps(false);
       return;
     }
 
-    if (hasRealGps) {
-      map.setView(position, 15, { animate: false });
-    }
-  }, [map, pickup, drop, position, hasRealGps]);
+    const requestId = ++gpsRequestRef.current;
+    let cancelled = false;
+
+    getCurrentLocation({
+      overallTimeoutMs: 30000,
+      mode: "balanced",
+    })
+      .then((coords) => {
+        if (cancelled || requestId !== gpsRequestRef.current) return;
+        const pt = normalizeLatLng([coords.latitude, coords.longitude]);
+        if (!pt) return;
+        setPosition(pt);
+        setHasRealGps(true);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [validPickup]);
+
+  const showRiderDot =
+    hasRealGps &&
+    gpsPoint != null &&
+    (!validPickup ||
+      Math.abs(gpsPoint[0] - validPickup[0]) > 0.0003 ||
+      Math.abs(gpsPoint[1] - validPickup[1]) > 0.0003);
 
   return (
     <div className="relative h-full w-full">
       <MapContainer
-        center={DEFAULT}
-        zoom={13}
+        center={validPickup ?? DEFAULT}
+        zoom={validPickup ? 16 : 13}
         className="h-full w-full rounded-2xl"
         style={{ height: "100%", width: "100%", minHeight: 320 }}
         dragging
         touchZoom
         scrollWheelZoom
         doubleClickZoom
-        zoomControl={false}      >
+        zoomControl={false}
+      >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {route.length > 1 && (
-          <Polyline
-            positions={route}
-            color="#3b82f6"
-            weight={4}
-            opacity={0.7}
-          />
-        )}
+        <RoutePolyline
+          positions={safeRoute}
+          variant={routeIsPreview ? "preview" : "primary"}
+        />
 
-        {pickup && (
-          <Marker position={pickup} icon={pickupIcon.current}>
+        {validPickup && (
+          <Marker position={validPickup} icon={pickupIcon.current}>
             <Popup>Pickup</Popup>
           </Marker>
         )}
 
-        {drop && (
-          <Marker position={drop} icon={dropIcon.current}>
+        {validDrop && (
+          <Marker position={validDrop} icon={dropIcon.current}>
             <Popup>Drop-off</Popup>
           </Marker>
         )}
 
-        {hasRealGps && (
-          <Marker position={position} icon={riderIcon.current}>
+        {showRiderDot && gpsPoint && (
+          <Marker position={gpsPoint} icon={riderIcon.current}>
             <Popup>Your location</Popup>
           </Marker>
         )}
 
-        <MapPanner
-          position={position}
-          hasRealGps={hasRealGps}
-          active={!pickup || !drop}
-        />
+        {(cameraPoints.length > 0 ||
+          (hasRealGps && gpsPoint != null && !validPickup)) && (
+          <MapBoundsFitter
+            points={
+              cameraPoints.length > 0
+                ? cameraPoints
+                : gpsPoint
+                  ? [gpsPoint]
+                  : []
+            }
+            route={safeRoute}
+            mode={cameraMode}
+            cameraKey={cameraKey}
+            padding={[80, 80]}
+          />
+        )}
+
         <MapController />
         <MapZoomControls />
       </MapContainer>
@@ -205,6 +199,15 @@ export default function StaticMap({
           {nearbyCaptains > 0
             ? `${nearbyCaptains} captains nearby`
             : "No captains nearby"}
+        </div>
+      )}
+
+      {routeDistanceKm != null && routeDistanceKm > 0 && (
+        <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-full border border-white bg-white/95 px-4 py-2 text-xs font-semibold text-neutral-800 shadow-md">
+          {routeDistanceKm.toFixed(1)} km
+          {routeDurationMin != null && routeDurationMin > 0
+            ? ` · ~${routeDurationMin} min`
+            : ""}
         </div>
       )}
     </div>

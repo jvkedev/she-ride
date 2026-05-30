@@ -5,14 +5,37 @@ import {
   AccountStatus,
   DocumentStatus,
   UserRole,
+  CaptainReportStatus,
+  SupportTicketStatus,
+  VehicleType,
+  Gender,
 } from '@prisma/client';
+import { RideRedisService } from '../redis/ride-redis.service';
+import { FareConfigService, type FareRatesMap } from '../platform/fare-config.service';
+import {
+  AdminDepartment,
+  AdminJobTitle,
+  AdminPermissionRole,
+} from '@prisma/client';
+import {
+  formatDepartmentLabel,
+  formatJobTitleLabel,
+  formatPermissionRoleLabel,
+  getOrgOptions,
+} from './admin-org.constants';
+import { UpdateAdminProfileDto } from './dto/update-admin-profile.dto';
 import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
+import { CaptainVerificationService } from '../captain/captain-verification.service';
+import { computeKycStatus } from '../captain/captain-verification.constants';
 
 @Injectable()
 export class AdminService {
   constructor(
     private prisma: PrismaService,
     private cloudinary: CloudinaryService,
+    private rideRedis: RideRedisService,
+    private fareConfig: FareConfigService,
+    private verificationService: CaptainVerificationService,
   ) {}
 
   // ── Dashboard ────────────────────────────────────────────────────────────
@@ -27,6 +50,8 @@ export class AdminService {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+    const startOfWeek = new Date(startOfToday);
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
 
     const [
       totalRiders,
@@ -36,7 +61,13 @@ export class AdminService {
       cancelledRides,
       activeRides,
       pendingKyc,
+      approvedKyc,
+      rejectedKyc,
+      pendingReports,
+      openSupportTickets,
       totalRevenueAgg,
+      revenueTodayAgg,
+      revenueThisWeekAgg,
       revenueThisMonthAgg,
       revenueLastMonthAgg,
       newRidersThisMonth,
@@ -64,15 +95,66 @@ export class AdminService {
         },
       }),
 
-      // Pending KYC captains
-      this.prisma.captainDocument.count({
-        where: { documentStatus: DocumentStatus.PENDING },
+      // Pending KYC captains (at least one document awaiting review)
+      this.prisma.captain.count({
+        where: {
+          document: {
+            items: {
+              some: { verificationStatus: 'PENDING_REVIEW' },
+            },
+          },
+        },
+      }),
+
+      this.prisma.captain.count({
+        where: { isVerified: true },
+      }),
+
+      this.prisma.captain.count({
+        where: {
+          isVerified: false,
+          document: {
+            items: {
+              some: { verificationStatus: 'REJECTED' },
+            },
+          },
+        },
+      }),
+
+      this.prisma.captainReport.count({
+        where: {
+          status: {
+            in: [CaptainReportStatus.OPEN, CaptainReportStatus.UNDER_REVIEW],
+          },
+        },
+      }),
+
+      this.prisma.supportTicket.count({
+        where: {
+          status: {
+            in: [SupportTicketStatus.OPEN, SupportTicketStatus.IN_PROGRESS],
+          },
+        },
       }),
 
       // Revenue (sum of finalFare on completed rides)
       this.prisma.ride.aggregate({
         _sum: { finalFare: true },
         where: { status: RideStatus.COMPLETED },
+      }),
+      this.prisma.ride.aggregate({
+        _sum: { finalFare: true },
+        where: {
+          status: RideStatus.COMPLETED,
+          completedAt: { gte: startOfToday },
+        },
+      }),
+      this.prisma.ride.aggregate({
+        _sum: { finalFare: true },
+        where: {
+          status: RideStatus.COMPLETED,
+          completedAt: { gte: startOfWeek },
+        },
       }),
       this.prisma.ride.aggregate({
         _sum: { finalFare: true },
@@ -104,6 +186,8 @@ export class AdminService {
     ]);
 
     const totalRevenue = totalRevenueAgg._sum.finalFare ?? 0;
+    const revenueToday = revenueTodayAgg._sum.finalFare ?? 0;
+    const revenueThisWeek = revenueThisWeekAgg._sum.finalFare ?? 0;
     const revenueThisMonth = revenueThisMonthAgg._sum.finalFare ?? 0;
     const revenueLastMonth = revenueLastMonthAgg._sum.finalFare ?? 0;
 
@@ -123,10 +207,19 @@ export class AdminService {
         totalRiders,
         totalCaptains,
         totalRides,
+        completedRides,
+        cancelledRides,
         totalRevenue: +totalRevenue.toFixed(2),
+        revenueToday: +revenueToday.toFixed(2),
+        revenueThisWeek: +revenueThisWeek.toFixed(2),
+        revenueThisMonth: +revenueThisMonth.toFixed(2),
         onlineCaptains,
         activeRides,
         pendingKyc,
+        approvedKyc,
+        rejectedKyc,
+        pendingReports,
+        openSupportTickets,
       },
       thisMonth: {
         newRiders: newRidersThisMonth,
@@ -137,6 +230,7 @@ export class AdminService {
       },
       today: {
         rides: ridesToday,
+        revenue: +revenueToday.toFixed(2),
       },
       rates: {
         completionRate: +completionRate,
@@ -412,6 +506,125 @@ export class AdminService {
     return { success: true, message: 'Rider unblocked successfully' };
   }
 
+  async getRiderById(userId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, role: 'RIDER' },
+      include: {
+        rider: {
+          include: {
+            captainReports: {
+              take: 10,
+              orderBy: { createdAt: 'desc' },
+              include: {
+                captain: { include: { user: { select: { fullName: true } } } },
+                ride: {
+                  select: {
+                    pickupAddress: true,
+                    dropAddress: true,
+                    status: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user?.rider) {
+      return null;
+    }
+
+    const rides = await this.prisma.ride.findMany({
+      where: { riderId: user.rider.id },
+      orderBy: { createdAt: 'desc' },
+      take: 15,
+      include: {
+        captain: { include: { user: { select: { fullName: true } } } },
+      },
+    });
+
+    const payments = rides
+      .filter((r) => r.status === RideStatus.COMPLETED)
+      .map((ride) => ({
+        id: ride.id,
+        amount: ride.finalFare ?? ride.estimatedFare ?? 0,
+        method: ride.paymentMethod.toLowerCase(),
+        completedAt: ride.completedAt?.toISOString() ?? ride.createdAt.toISOString(),
+        pickup: ride.pickupAddress,
+        dropoff: ride.dropAddress,
+      }));
+
+    return {
+      id: user.id,
+      name: user.fullName,
+      email: user.email,
+      phone: user.phoneNumber,
+      totalRides: user.rider.totalRides,
+      rating: user.rider.averageRating,
+      status: user.accountStatus.toLowerCase(),
+      joinedAt: user.createdAt.toISOString(),
+      recentRides: rides.map((ride) => ({
+        id: ride.id,
+        driverName: ride.captain?.user.fullName ?? 'Unassigned',
+        pickup: ride.pickupAddress,
+        dropoff: ride.dropAddress,
+        fare: ride.finalFare ?? ride.estimatedFare ?? 0,
+        status: ride.status.toLowerCase(),
+        createdAt: ride.createdAt.toISOString(),
+      })),
+      payments,
+      reports: user.rider.captainReports.map((report) => ({
+        id: report.id,
+        category: report.category,
+        status: report.status,
+        description: report.description,
+        captainName: report.captain.user.fullName,
+        ride: report.ride,
+        createdAt: report.createdAt.toISOString(),
+      })),
+    };
+  }
+
+  async blockCaptain(captainId: string) {
+    const captain = await this.prisma.captain.findUnique({
+      where: { id: captainId },
+      select: { userId: true },
+    });
+    if (!captain) {
+      throw new NotFoundException('Captain not found');
+    }
+
+    await this.prisma.user.update({
+      where: { id: captain.userId },
+      data: { accountStatus: AccountStatus.BLOCKED },
+    });
+
+    await this.prisma.captain.update({
+      where: { id: captainId },
+      data: { isOnline: false },
+    });
+
+    return { success: true, message: 'Captain blocked successfully' };
+  }
+
+  async unblockCaptain(captainId: string) {
+    const captain = await this.prisma.captain.findUnique({
+      where: { id: captainId },
+      select: { userId: true },
+    });
+    if (!captain) {
+      throw new NotFoundException('Captain not found');
+    }
+
+    await this.prisma.user.update({
+      where: { id: captain.userId },
+      data: { accountStatus: AccountStatus.ACTIVE },
+    });
+
+    return { success: true, message: 'Captain unblocked successfully' };
+  }
+
   // ── Captains/Drivers list ────────────────────────────────────────────────
 
   async getCaptains() {
@@ -434,30 +647,33 @@ export class AdminService {
           },
         },
         document: {
-          select: {
-            documentStatus: true,
+          include: {
+            items: true,
           },
         },
       },
     });
 
-    return captains.map((captain) => ({
-      id: captain.id,
-      name: captain.user.fullName,
-      phone: captain.user.phoneNumber,
-      vehicle: captain.vehicle
-        ? `${captain.vehicle.brand} ${captain.vehicle.model}`
-        : 'N/A',
-      vehicleType: captain.vehicle?.vehicleType ?? 'AUTO',
-      plate: captain.vehicle?.vehicleNumber ?? '—',
-      rating: captain.rating,
-      trips: captain.totalTrips,
-      status: captain.isOnline
-        ? 'online'
-        : captain.user.accountStatus.toLowerCase(),
-      kycStatus: captain.document?.documentStatus.toLowerCase() ?? 'pending',
-      joinedAt: captain.createdAt,
-    }));
+    return captains.map((captain) => {
+      const items = captain.document?.items ?? [];
+      return {
+        id: captain.id,
+        name: captain.user.fullName,
+        phone: captain.user.phoneNumber,
+        vehicle: captain.vehicle
+          ? `${captain.vehicle.brand} ${captain.vehicle.model}`
+          : 'N/A',
+        vehicleType: captain.vehicle?.vehicleType ?? 'AUTO',
+        plate: captain.vehicle?.vehicleNumber ?? '—',
+        rating: captain.rating,
+        trips: captain.totalTrips,
+        status: captain.isOnline
+          ? 'online'
+          : captain.user.accountStatus.toLowerCase(),
+        kycStatus: computeKycStatus(items, captain.isVerified),
+        joinedAt: captain.createdAt,
+      };
+    });
   }
 
   async getCaptainById(captainId: string) {
@@ -482,19 +698,8 @@ export class AdminService {
           },
         },
         document: {
-          select: {
-            documentStatus: true,
-            rejectionReason: true,
-            aadhaarNumber: true,
-            drivingLicenseNumber: true,
-            aadhaarFrontImage: true,
-            aadhaarBackImage: true,
-            drivingLicenseImage: true,
-            rcImage: true,
-            selfieImage: true,
-            uploadedAt: true,
-            verifiedAt: true,
-            updatedAt: true,
+          include: {
+            items: true,
           },
         },
       },
@@ -504,63 +709,9 @@ export class AdminService {
       return null;
     }
 
-    return {
-      id: captain.id,
-      name: captain.user.fullName,
-      email: captain.user.email,
-      phone: captain.user.phoneNumber,
-      vehicle: captain.vehicle
-        ? `${captain.vehicle.brand} ${captain.vehicle.model}`
-        : 'N/A',
-      vehicleType: captain.vehicle?.vehicleType ?? 'AUTO',
-      plate: captain.vehicle?.vehicleNumber ?? '—',
-      rating: captain.rating,
-      trips: captain.totalTrips,
-      status: captain.isOnline
-        ? 'online'
-        : captain.user.accountStatus.toLowerCase(),
-      documentStatus:
-        captain.document?.documentStatus.toLowerCase() ?? 'pending',
-      rejectionReason: captain.document?.rejectionReason ?? null,
-      joinedAt: captain.createdAt,
-      documents: [
-        {
-          key: 'driving_license',
-          label: 'Driving license',
-          number: captain.document?.drivingLicenseNumber ?? null,
-          imageUrl: captain.document?.drivingLicenseImage ?? null,
-          status: captain.document?.documentStatus.toLowerCase() ?? 'pending',
-        },
-        {
-          key: 'rc_registration',
-          label: 'RC / Registration',
-          number: captain.vehicle?.vehicleNumber ?? null,
-          imageUrl: captain.document?.rcImage ?? null,
-          status: captain.document?.documentStatus.toLowerCase() ?? 'pending',
-        },
-        {
-          key: 'aadhaar',
-          label: 'Aadhaar',
-          number: captain.document?.aadhaarNumber ?? null,
-          imageUrl: captain.document?.aadhaarFrontImage ?? null,
-          status: captain.document?.documentStatus.toLowerCase() ?? 'pending',
-        },
-        {
-          key: 'selfie',
-          label: 'Selfie verification',
-          number: null,
-          imageUrl: captain.document?.selfieImage ?? null,
-          status: captain.document?.documentStatus.toLowerCase() ?? 'pending',
-        },
-      ],
-    };
-  }
+    await this.verificationService.ensureDocumentBundle(captain.id);
 
-  async updateCaptainDocument(
-    captainId: string,
-    dto: { status: DocumentStatus; rejectionReason?: string },
-  ) {
-    const captain = await this.prisma.captain.findUnique({
+    const refreshed = await this.prisma.captain.findUnique({
       where: { id: captainId },
       include: {
         user: {
@@ -580,28 +731,65 @@ export class AdminService {
             model: true,
           },
         },
-        document: true,
+        document: {
+          include: { items: true },
+        },
       },
     });
 
-    if (!captain || !captain.document) {
+    if (!refreshed) return null;
+
+    const documentItems = refreshed.document?.items ?? [];
+
+    return {
+      id: refreshed.id,
+      name: refreshed.user.fullName,
+      email: refreshed.user.email,
+      phone: refreshed.user.phoneNumber,
+      vehicle: refreshed.vehicle
+        ? `${refreshed.vehicle.brand} ${refreshed.vehicle.model}`
+        : 'N/A',
+      vehicleType: refreshed.vehicle?.vehicleType ?? 'AUTO',
+      plate: refreshed.vehicle?.vehicleNumber ?? '—',
+      rating: refreshed.rating,
+      trips: refreshed.totalTrips,
+      status: refreshed.isOnline
+        ? 'online'
+        : refreshed.user.accountStatus.toLowerCase(),
+      documentStatus: computeKycStatus(documentItems, refreshed.isVerified),
+      rejectionReason:
+        documentItems.find((i) => i.rejectionReason)?.rejectionReason ?? null,
+      joinedAt: refreshed.createdAt,
+      documents: this.verificationService.mapItemsForAdmin(documentItems),
+    };
+  }
+
+  async updateCaptainDocument(
+    captainId: string,
+    dto: {
+      status: DocumentStatus;
+      documentKey: string;
+      rejectionReason?: string;
+    },
+    reviewerUserId: string,
+  ) {
+    const captain = await this.prisma.captain.findUnique({
+      where: { id: captainId },
+      select: { id: true },
+    });
+
+    if (!captain) {
       return null;
     }
 
-    await this.prisma.captainDocument.update({
-      where: { captainId },
-      data: {
-        documentStatus: dto.status,
-        rejectionReason:
-          dto.status === DocumentStatus.REJECTED
-            ? (dto.rejectionReason ?? 'Document rejected by security review')
-            : null,
-        verifiedAt:
-          dto.status === DocumentStatus.APPROVED
-            ? new Date()
-            : captain.document.verifiedAt,
-      },
-    });
+    await this.verificationService.ensureDocumentBundle(captainId);
+    await this.verificationService.reviewDocument(
+      captainId,
+      dto.documentKey,
+      dto.status,
+      reviewerUserId,
+      dto.rejectionReason,
+    );
 
     return this.getCaptainById(captainId);
   }
@@ -621,7 +809,49 @@ export class AdminService {
       throw new NotFoundException('Admin profile not found');
     }
 
-    return this.prisma.admin.create({ data: { userId } });
+    return this.prisma.admin.create({
+      data: {
+        userId,
+        department: AdminDepartment.OPERATIONS,
+        jobTitle: AdminJobTitle.ADMINISTRATOR,
+        permissionRole: AdminPermissionRole.ADMIN,
+      },
+    });
+  }
+
+  getOrganizationOptions() {
+    return getOrgOptions();
+  }
+
+  private mapAdminProfile(user: {
+    fullName: string;
+    email: string;
+    phoneNumber: string;
+    admin: {
+      profileImage: string | null;
+      gender: Gender | null;
+      dateOfBirth: Date | null;
+      department: AdminDepartment | null;
+      jobTitle: AdminJobTitle | null;
+      permissionRole: AdminPermissionRole;
+    };
+  }) {
+    return {
+      fullName: user.fullName,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+      profileImage: user.admin.profileImage,
+      gender: user.admin.gender,
+      dateOfBirth: user.admin.dateOfBirth?.toISOString() ?? null,
+      department: user.admin.department,
+      departmentLabel: formatDepartmentLabel(user.admin.department),
+      jobTitle: user.admin.jobTitle,
+      jobTitleLabel: formatJobTitleLabel(user.admin.jobTitle),
+      permissionRole: user.admin.permissionRole,
+      permissionRoleLabel: formatPermissionRoleLabel(
+        user.admin.permissionRole,
+      ),
+    };
   }
 
   async getProfile(userId: string) {
@@ -632,60 +862,95 @@ export class AdminService {
       include: { admin: true },
     });
 
-    if (!user?.admin) {
+    const admin = user?.admin;
+    if (!user || !admin) {
       throw new NotFoundException('Admin profile not found');
     }
 
-    return {
+    return this.mapAdminProfile({
       fullName: user.fullName,
       email: user.email,
       phoneNumber: user.phoneNumber,
-      profileImage: user.admin.profileImage,
-      gender: user.admin.gender,
-      dateOfBirth: user.admin.dateOfBirth?.toISOString() ?? null,
-      department: user.admin.department,
-      jobTitle: user.admin.jobTitle,
-      memberSince: user.createdAt.toISOString(),
-    };
+      admin,
+    });
   }
 
-  async updateProfile(
-    userId: string,
-    dto: {
-      fullName?: string;
-      email?: string;
-      gender?: 'MALE' | 'FEMALE' | 'OTHER';
-      dateOfBirth?: string;
-      department?: string;
-      jobTitle?: string;
-    },
-  ) {
+  async updateProfile(userId: string, dto: UpdateAdminProfileDto) {
     await this.ensureAdminProfile(userId);
 
+    const userUpdates: {
+      fullName?: string;
+      email?: string;
+      phoneNumber?: string;
+    } = {};
+
+    if (dto.fullName) userUpdates.fullName = dto.fullName;
+    if (dto.email) userUpdates.email = dto.email;
+    if (dto.phoneNumber) userUpdates.phoneNumber = dto.phoneNumber;
+
+    const adminUpdates: {
+      gender?: Gender;
+      dateOfBirth?: Date;
+      department?: AdminDepartment | null;
+      jobTitle?: AdminJobTitle | null;
+    } = {};
+
+    if (dto.gender) adminUpdates.gender = dto.gender;
+    if (dto.dateOfBirth) adminUpdates.dateOfBirth = new Date(dto.dateOfBirth);
+    if (dto.department !== undefined) adminUpdates.department = dto.department;
+    if (dto.jobTitle !== undefined) adminUpdates.jobTitle = dto.jobTitle;
+
     await this.prisma.$transaction([
-      ...(dto.fullName || dto.email
+      ...(Object.keys(userUpdates).length
         ? [
             this.prisma.user.update({
               where: { id: userId },
-              data: {
-                ...(dto.fullName && { fullName: dto.fullName }),
-                ...(dto.email && { email: dto.email }),
-              },
+              data: userUpdates,
             }),
           ]
         : []),
       this.prisma.admin.update({
         where: { userId },
-        data: {
-          ...(dto.gender && { gender: dto.gender }),
-          ...(dto.dateOfBirth && { dateOfBirth: new Date(dto.dateOfBirth) }),
-          ...(dto.department !== undefined && { department: dto.department }),
-          ...(dto.jobTitle !== undefined && { jobTitle: dto.jobTitle }),
-        },
+        data: adminUpdates,
       }),
     ]);
 
     return this.getProfile(userId);
+  }
+
+  async listAdminTeam() {
+    const admins = await this.prisma.admin.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phoneNumber: true,
+            role: true,
+            accountStatus: true,
+          },
+        },
+      },
+    });
+
+    return admins.map((row) => ({
+      id: row.id,
+      userId: row.userId,
+      name: row.user.fullName,
+      email: row.user.email,
+      phone: row.user.phoneNumber,
+      authRole: row.user.role,
+      status: row.user.accountStatus.toLowerCase(),
+      department: row.department,
+      departmentLabel: formatDepartmentLabel(row.department),
+      jobTitle: row.jobTitle,
+      jobTitleLabel: formatJobTitleLabel(row.jobTitle),
+      permissionRole: row.permissionRole,
+      permissionRoleLabel: formatPermissionRoleLabel(row.permissionRole),
+      profileImage: row.profileImage,
+    }));
   }
 
   async updateProfilePhoto(
@@ -818,5 +1083,205 @@ export class AdminService {
     }
 
     return days;
+  }
+
+  async getGrowthChart() {
+    const months: {
+      label: string;
+      riders: number;
+      captains: number;
+    }[] = [];
+    const now = new Date();
+
+    for (let i = 5; i >= 0; i--) {
+      const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const end = new Date(
+        now.getFullYear(),
+        now.getMonth() - i + 1,
+        0,
+        23,
+        59,
+        59,
+      );
+
+      const [riders, captains] = await Promise.all([
+        this.prisma.user.count({
+          where: { role: 'RIDER', createdAt: { gte: start, lte: end } },
+        }),
+        this.prisma.user.count({
+          where: { role: 'CAPTAIN', createdAt: { gte: start, lte: end } },
+        }),
+      ]);
+
+      months.push({
+        label: start.toLocaleString('en-IN', {
+          month: 'short',
+          year: '2-digit',
+        }),
+        riders,
+        captains,
+      });
+    }
+
+    return months;
+  }
+
+  async getLiveOperations() {
+    const activeStatuses = [
+      RideStatus.SEARCHING,
+      RideStatus.ACCEPTED,
+      RideStatus.ARRIVING,
+      RideStatus.IN_PROGRESS,
+    ];
+
+    const [activeRides, onlineCaptains, activeSosCount] = await Promise.all([
+      this.prisma.ride.findMany({
+        where: { status: { in: activeStatuses } },
+        orderBy: { updatedAt: 'desc' },
+        include: {
+          rider: { include: { user: { select: { fullName: true } } } },
+          captain: {
+            include: {
+              user: { select: { fullName: true } },
+              vehicle: { select: { vehicleType: true, vehicleNumber: true } },
+            },
+          },
+        },
+      }),
+      this.prisma.captain.findMany({
+        where: { isOnline: true },
+        include: {
+          user: { select: { fullName: true } },
+          vehicle: { select: { vehicleType: true, vehicleNumber: true } },
+        },
+      }),
+      this.prisma.sosAlert.count({ where: { status: 'ACTIVE' } }),
+    ]);
+
+    const captainMarkers = await Promise.all(
+      onlineCaptains.map(async (captain) => {
+        const redisLoc = await this.rideRedis.getCaptainLocation(captain.id);
+        const lat =
+          redisLoc?.lat ??
+          (captain.currentLatitude != null
+            ? Number(captain.currentLatitude)
+            : null);
+        const lng =
+          redisLoc?.lng ??
+          (captain.currentLongitude != null
+            ? Number(captain.currentLongitude)
+            : null);
+
+        return {
+          id: captain.id,
+          name: captain.user.fullName,
+          vehicleType: captain.vehicle?.vehicleType ?? null,
+          plate: captain.vehicle?.vehicleNumber ?? null,
+          lat,
+          lng,
+          updatedAt: redisLoc?.updatedAt ?? null,
+        };
+      }),
+    );
+
+    return {
+      stats: {
+        activeRides: activeRides.length,
+        onlineCaptains: onlineCaptains.length,
+        ridersOnTrip: activeRides.filter(
+          (r) => r.status === RideStatus.IN_PROGRESS,
+        ).length,
+        activeSos: activeSosCount,
+      },
+      activeRides: activeRides.map((ride) => ({
+        id: ride.id,
+        status: ride.status.toLowerCase(),
+        riderName: ride.rider.user.fullName,
+        captainName: ride.captain?.user.fullName ?? null,
+        pickup: ride.pickupAddress,
+        dropoff: ride.dropAddress,
+        pickupLat: ride.pickupLatitude,
+        pickupLng: ride.pickupLongitude,
+        dropLat: ride.dropLatitude,
+        dropLng: ride.dropLongitude,
+        captainLat: ride.captain?.currentLatitude ?? null,
+        captainLng: ride.captain?.currentLongitude ?? null,
+      })),
+      captains: captainMarkers.filter(
+        (c) => c.lat != null && c.lng != null && Number.isFinite(c.lat),
+      ),
+    };
+  }
+
+  async getFareSettings() {
+    const rates = await this.fareConfig.getRates();
+    return Object.entries(rates).map(([vehicleType, rate]) => ({
+      vehicleType,
+      label: this.vehicleLabel(vehicleType as VehicleType),
+      base: rate.base,
+      perKm: rate.perKm,
+    }));
+  }
+
+  async updateFareSettings(
+    updates: Array<{ vehicleType: VehicleType; base: number; perKm: number }>,
+  ) {
+    const partial: Partial<FareRatesMap> = {};
+    for (const row of updates) {
+      partial[row.vehicleType] = { base: row.base, perKm: row.perKm };
+    }
+    const rates = await this.fareConfig.updateRates(partial);
+    return Object.entries(rates).map(([vehicleType, rate]) => ({
+      vehicleType,
+      label: this.vehicleLabel(vehicleType as VehicleType),
+      base: rate.base,
+      perKm: rate.perKm,
+    }));
+  }
+
+  async getRoleStats() {
+    const roles: UserRole[] = [
+      UserRole.ADMIN,
+      UserRole.RIDER,
+      UserRole.CAPTAIN,
+      UserRole.SECURITY,
+      UserRole.PENDING,
+    ];
+
+    const counts = await Promise.all(
+      roles.map((role) =>
+        this.prisma.user.count({ where: { role, accountStatus: AccountStatus.ACTIVE } }),
+      ),
+    );
+
+    const descriptions: Record<UserRole, string> = {
+      ADMIN: 'Full platform access, settings, and user management',
+      RIDER: 'Book rides, payments, and safety features',
+      CAPTAIN: 'Accept rides, earnings, and vehicle management',
+      SECURITY: 'SOS, incidents, and safety operations',
+      PENDING: 'Awaiting role selection after signup',
+    };
+
+    return roles.map((role, index) => ({
+      role,
+      name: role.charAt(0) + role.slice(1).toLowerCase(),
+      users: counts[index],
+      permissions: descriptions[role],
+    }));
+  }
+
+  private vehicleLabel(type: VehicleType) {
+    switch (type) {
+      case VehicleType.BIKE:
+        return 'She Bike';
+      case VehicleType.AUTO:
+        return 'She Auto';
+      case VehicleType.CAR:
+        return 'She Go';
+      case VehicleType.SUV:
+        return 'She Plus';
+      default:
+        return type;
+    }
   }
 }

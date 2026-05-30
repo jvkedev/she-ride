@@ -212,7 +212,14 @@ export class IncidentService {
       where: { id: incidentId, deletedAt: null },
       include: {
         user: {
-          select: { id: true, fullName: true, phoneNumber: true, role: true },
+          select: {
+            id: true,
+            fullName: true,
+            phoneNumber: true,
+            role: true,
+            captain: { select: { id: true } },
+            rider: { select: { id: true } },
+          },
         },
         assignedUser: { select: { id: true, fullName: true } },
         ride: {
@@ -221,6 +228,20 @@ export class IncidentService {
             pickupAddress: true,
             dropAddress: true,
             status: true,
+            captainId: true,
+            riderId: true,
+            captain: {
+              select: {
+                id: true,
+                user: { select: { fullName: true } },
+              },
+            },
+            rider: {
+              select: {
+                id: true,
+                user: { select: { fullName: true } },
+              },
+            },
           },
         },
         notes: {
@@ -294,10 +315,14 @@ export class IncidentService {
 
     await this.createAuditLog({
       performedBy: assignedBy,
-      action: 'INCIDENT_CREATED', // use closest available — you can add INCIDENT_ASSIGNED to AuditAction enum
+      action: 'INCIDENT_ASSIGNED',
       incidentId,
       previousData: previous,
-      newData: { assignedTo: dto.assigneeId, status: updated.status },
+      newData: {
+        assignedTo: dto.assigneeId,
+        assigneeName: assignee.fullName,
+        status: updated.status,
+      },
     });
 
     return updated;
@@ -353,7 +378,9 @@ export class IncidentService {
     await this.createAuditLog({
       performedBy: updatedBy,
       action:
-        dto.status === 'RESOLVED' ? 'INCIDENT_RESOLVED' : 'INCIDENT_CREATED',
+        dto.status === 'RESOLVED'
+          ? 'INCIDENT_RESOLVED'
+          : 'INCIDENT_STATUS_CHANGED',
       incidentId,
       previousData: previous,
       newData: { status: dto.status },
@@ -391,7 +418,7 @@ export class IncidentService {
     });
     if (!incident) throw new NotFoundException('Incident not found');
 
-    return this.prisma.incidentNote.create({
+    const note = await this.prisma.incidentNote.create({
       data: {
         incidentId,
         authorId,
@@ -400,6 +427,15 @@ export class IncidentService {
       },
       include: { author: { select: { id: true, fullName: true, role: true } } },
     });
+
+    await this.createAuditLog({
+      performedBy: authorId,
+      action: 'INCIDENT_NOTE_ADDED',
+      incidentId,
+      metadata: { isInternal: dto.isInternal ?? true },
+    });
+
+    return note;
   }
 
   // ── Timeline ─────────────────────────────────────────────────────────────────

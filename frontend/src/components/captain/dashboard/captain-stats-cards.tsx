@@ -4,53 +4,54 @@ import { useEffect, useState } from "react";
 import { Clock, IndianRupee, Star, TrendingUp } from "lucide-react";
 
 import CaptainStatWidget from "@/components/captain/shared/captain-stat-widget";
-import {
-  getCaptainEarnings,
-  CaptainEarningsSummary,
-} from "@/services/captain/captain-earnings.service";
-import { todayStats } from "@/lib/captain/captain-mock-data";
+import { useCaptainProfile } from "@/hooks/captain/use-captain-profile";
+import { getCaptainDashboard } from "@/services/captain/captain-dashboard.service";
 
 export default function CaptainStatsCards() {
-  const [summary, setSummary] = useState<CaptainEarningsSummary | null>(null);
+  const [trips, setTrips] = useState(0);
+  const [earnings, setEarnings] = useState(0);
   const [loading, setLoading] = useState(true);
+  const { data: profile } = useCaptainProfile();
 
   useEffect(() => {
-    getCaptainEarnings()
-      .then((data) => setSummary(data.dailySummary))
-      .catch(console.error)
+    getCaptainDashboard()
+      .then((dashboard) => {
+        setTrips(dashboard.today.trips);
+        setEarnings(dashboard.today.earnings);
+      })
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const rating = profile?.rating ?? 5;
+  const totalTrips = profile?.totalTrips ?? 0;
 
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <CaptainStatWidget
         label="Trips today"
-        value={loading ? "Loading..." : String(summary?.trips ?? 0)}
-        hint="4 more than yesterday"
+        value={loading ? "…" : String(trips)}
+        hint={loading ? "" : `${totalTrips} total completed`}
         icon={TrendingUp}
         accent="primary"
       />
       <CaptainStatWidget
         label="Earnings today"
-        value={
-          loading
-            ? "Loading..."
-            : `₹${(summary?.total ?? 0).toLocaleString("en-IN")}`
-        }
-        hint="Including incentives"
+        value={loading ? "…" : `₹${earnings.toLocaleString("en-IN")}`}
+        hint="From completed trips"
         icon={IndianRupee}
         accent="primary"
       />
       <CaptainStatWidget
         label="Rating"
-        value={todayStats.rating.toFixed(2)}
-        hint="Last 50 trips"
+        value={loading ? "…" : rating.toFixed(2)}
+        hint="Captain rating"
         icon={Star}
       />
       <CaptainStatWidget
-        label="Online hours"
-        value={`${todayStats.onlineHours}h`}
-        hint="Since 8:00 AM"
+        label="Status"
+        value={loading ? "…" : "Online ready"}
+        hint="Toggle online in header"
         icon={Clock}
       />
     </div>

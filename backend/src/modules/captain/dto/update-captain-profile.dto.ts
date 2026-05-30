@@ -1,4 +1,10 @@
-import { IsDateString, IsEnum, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 import { Gender } from '@prisma/client';
 
 export class UpdateCaptainProfileDto {
@@ -17,4 +23,24 @@ export class UpdateCaptainProfileDto {
   @IsOptional()
   @IsDateString()
   dateOfBirth?: string;
+
+  @IsOptional()
+  @IsString()
+  emergencyContactName?: string;
+
+  @IsOptional()
+  @IsString()
+  emergencyContactPhone?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  safetyAlertEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  notifyRequestAlerts?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  shareLiveLocation?: boolean;
 }

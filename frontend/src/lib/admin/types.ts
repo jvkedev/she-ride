@@ -15,11 +15,17 @@ export type AdminDriver = {
 };
 
 export type AdminDriverDocument = {
-  key: "driving_license" | "rc_registration" | "aadhaar" | "selfie";
+  key:
+    | "driving_license"
+    | "vehicle_rc"
+    | "vehicle_insurance"
+    | "government_id";
   label: string;
   number?: string | null;
   imageUrl?: string | null;
   status: DashboardStatus;
+  rejectionReason?: string | null;
+  uploadedAt?: string | null;
 };
 
 export type AdminDriverDetail = AdminDriver & {

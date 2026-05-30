@@ -21,7 +21,12 @@ export default function SecurityActivityFeed() {
     <SurfaceCard>
       <h2 className={dashboardHeading}>Real-time activity</h2>
       <ul className="mt-4 max-h-[400px] space-y-2 overflow-y-auto">
-        {events.map((item) => (
+        {events.length === 0 ? (
+          <li className="rounded-lg border border-neutral-100 px-3 py-6 text-center text-sm text-neutral-500">
+            No live activity yet. Events will appear here as alerts are recorded.
+          </li>
+        ) : (
+          events.map((item) => (
           <li
             key={item.id}
             className="flex items-start gap-3 rounded-lg border border-neutral-100 px-3 py-3"
@@ -42,7 +47,8 @@ export default function SecurityActivityFeed() {
               </div>
             </div>
           </li>
-        ))}
+          ))
+        )}
       </ul>
     </SurfaceCard>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Mail,
   Phone,
@@ -12,17 +12,33 @@ import {
   Check,
   Upload,
   Loader2,
+  Shield,
+  KeyRound,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import AdminCard from "@/components/admin/shared/admin-card";
+import DashboardLogoutButton from "@/components/shared/dashboard/logout-button";
 import { dashboardHeading } from "@/lib/dashboard/styles";
+import {
+  ADMIN_DEPARTMENT_OPTIONS,
+  ADMIN_JOB_TITLE_OPTIONS,
+} from "@/lib/admin/org-options";
 import { cn } from "@/lib/utils";
+import { useInvalidateAdminProfile } from "@/hooks/admin/use-admin-profile";
 import {
   getAdminProfile,
   updateAdminProfile,
   uploadAdminPhoto,
+  changePassword,
   type AdminProfile,
 } from "@/services/admin/admin-profile.service";
+
+const GENDER_LABELS: Record<string, string> = {
+  MALE: "Male",
+  FEMALE: "Female",
+  OTHER: "Other",
+};
 
 function formatDate(dateStr?: string | null) {
   if (!dateStr) return "—";
@@ -35,12 +51,6 @@ function formatDate(dateStr?: string | null) {
   });
 }
 
-const GENDER_LABELS: Record<string, string> = {
-  MALE: "Male",
-  FEMALE: "Female",
-  OTHER: "Other",
-};
-
 function InfoRow({
   icon,
   label,
@@ -51,7 +61,7 @@ function InfoRow({
   value: string;
 }) {
   return (
-    <li className="flex items-center gap-3 border border-neutral-100 rounded-2xl px-3 py-3">
+    <li className="flex items-center gap-3 rounded-2xl border border-neutral-100 px-3 py-3">
       <span className="shrink-0 text-neutral-400">{icon}</span>
       <div className="min-w-0">
         <p className="text-xs text-neutral-500">{label}</p>
@@ -112,7 +122,15 @@ export default function AdminProfilePanel() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<Partial<AdminProfile>>({});
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const invalidateProfile = useInvalidateAdminProfile();
 
   useEffect(() => {
     getAdminProfile()
@@ -120,7 +138,7 @@ export default function AdminProfilePanel() {
         setProfile(p);
         setForm(p);
       })
-      .catch(console.error)
+      .catch(() => toast.error("Failed to load profile"))
       .finally(() => setLoading(false));
   }, []);
 
@@ -136,8 +154,10 @@ export default function AdminProfilePanel() {
       setProfile(updated);
       setForm(updated);
       setEditing(false);
-    } catch (err) {
-      console.error("Failed to save:", err);
+      invalidateProfile();
+      toast.success("Profile updated");
+    } catch {
+      toast.error("Failed to save profile");
     } finally {
       setSaving(false);
     }
@@ -155,11 +175,48 @@ export default function AdminProfilePanel() {
     try {
       const { profileImage } = await uploadAdminPhoto(file);
       setProfile((prev) => (prev ? { ...prev, profileImage } : prev));
-    } catch (err) {
-      console.error("Photo upload failed:", err);
+      invalidateProfile();
+      toast.success("Profile photo updated");
+    } catch {
+      toast.error("Failed to upload photo");
     } finally {
       setPhotoUploading(false);
       e.target.value = "";
+    }
+  }
+
+  async function handlePasswordSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    setPasswordSaving(true);
+    try {
+      await changePassword(passwordForm);
+      setPasswordForm({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+      setChangingPassword(false);
+      toast.success("Password updated");
+    } catch (err: unknown) {
+      const message =
+        err &&
+        typeof err === "object" &&
+        "response" in err &&
+        err.response &&
+        typeof err.response === "object" &&
+        "data" in err.response &&
+        err.response.data &&
+        typeof err.response.data === "object" &&
+        "message" in err.response.data
+          ? String(err.response.data.message)
+          : "Failed to change password";
+      toast.error(message);
+    } finally {
+      setPasswordSaving(false);
     }
   }
 
@@ -216,7 +273,6 @@ export default function AdminProfilePanel() {
             <input
               ref={fileInputRef}
               type="file"
-              name="file"
               accept="image/*"
               onChange={handlePhotoChange}
               className="hidden"
@@ -238,29 +294,12 @@ export default function AdminProfilePanel() {
               {profile.name}
             </h2>
             <p className="mt-1 text-sm text-neutral-500">She Ride Admin</p>
+            <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/5 px-2.5 py-0.5 text-xs font-medium text-primary">
+              <Shield className="size-3" />
+              {profile.permissionRoleLabel}
+            </span>
           </>
         )}
-
-        <dl className="mt-6 grid grid-cols-3 gap-4 border-t border-neutral-100 pt-6">
-          <div>
-            <dt className="text-xs text-neutral-500">Department</dt>
-            <dd className="text-sm font-semibold text-neutral-900">
-              {profile.department ?? "—"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-neutral-500">Role</dt>
-            <dd className="text-sm font-semibold text-neutral-900">
-              {profile.jobTitle ?? "—"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-neutral-500">Member since</dt>
-            <dd className="text-sm font-semibold text-neutral-900">
-              {formatDate(profile.memberSince)}
-            </dd>
-          </div>
-        </dl>
 
         <div className="mt-4 flex justify-center gap-2">
           {editing ? (
@@ -296,10 +335,21 @@ export default function AdminProfilePanel() {
 
       <AdminCard>
         <h2 className={cn(dashboardHeading, "flex items-center gap-2")}>
-          <User className="size-4 text-primary" /> Personal details
+          <User className="size-4 text-primary" /> Basic information
         </h2>
         {editing ? (
           <div className="mt-4 space-y-3">
+            <EditField
+              label="Email"
+              value={(form.email as string) ?? ""}
+              onChange={(v) => handleChange("email", v)}
+              type="email"
+            />
+            <EditField
+              label="Phone number"
+              value={(form.phoneNumber as string) ?? ""}
+              onChange={(v) => handleChange("phoneNumber", v)}
+            />
             <EditField
               label="Gender"
               value={(form.gender as string) ?? ""}
@@ -311,10 +361,10 @@ export default function AdminProfilePanel() {
               ]}
             />
             <EditField
-              label="Date of Birth"
+              label="Date of birth"
               value={
                 form.dateOfBirth
-                  ? (form.dateOfBirth as string).split("T")[0]
+                  ? String(form.dateOfBirth).split("T")[0]
                   : ""
               }
               onChange={(v) => handleChange("dateOfBirth", v)}
@@ -354,7 +404,7 @@ export default function AdminProfilePanel() {
 
       <AdminCard>
         <h2 className={cn(dashboardHeading, "flex items-center gap-2")}>
-          <Briefcase className="size-4 text-primary" /> Work details
+          <Briefcase className="size-4 text-primary" /> Organization information
         </h2>
         {editing ? (
           <div className="mt-4 space-y-3">
@@ -362,11 +412,13 @@ export default function AdminProfilePanel() {
               label="Department"
               value={(form.department as string) ?? ""}
               onChange={(v) => handleChange("department", v)}
+              options={[...ADMIN_DEPARTMENT_OPTIONS]}
             />
             <EditField
               label="Job title"
               value={(form.jobTitle as string) ?? ""}
               onChange={(v) => handleChange("jobTitle", v)}
+              options={[...ADMIN_JOB_TITLE_OPTIONS]}
             />
           </div>
         ) : (
@@ -374,20 +426,112 @@ export default function AdminProfilePanel() {
             <InfoRow
               icon={<Briefcase className="size-4" />}
               label="Department"
-              value={profile.department ?? "—"}
+              value={profile.departmentLabel ?? "—"}
             />
             <InfoRow
               icon={<Briefcase className="size-4" />}
               label="Job title"
-              value={profile.jobTitle ?? "—"}
+              value={profile.jobTitleLabel ?? "—"}
             />
-            <InfoRow
-              icon={<Calendar className="size-4" />}
-              label="Member since"
-              value={formatDate(profile.memberSince)}
-            />
+            <li className="flex items-center gap-3 rounded-2xl border border-neutral-100 px-3 py-3">
+              <span className="shrink-0 text-neutral-400">
+                <Shield className="size-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs text-neutral-500">Permission role</p>
+                <span className="mt-0.5 inline-flex rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-xs font-medium text-primary">
+                  {profile.permissionRoleLabel}
+                </span>
+              </div>
+            </li>
           </ul>
         )}
+      </AdminCard>
+
+      <AdminCard>
+        <h2 className={dashboardHeading}>Profile actions</h2>
+        <p className="mt-1 text-sm text-neutral-500">
+          Update your account security or sign out on this device.
+        </p>
+
+        <div className="mt-4 space-y-3">
+          {!editing ? (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-200 px-4 py-2.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+            >
+              <Pencil className="size-4" />
+              Update profile
+            </button>
+          ) : null}
+
+          {!changingPassword ? (
+            <button
+              type="button"
+              onClick={() => setChangingPassword(true)}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-200 px-4 py-2.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+            >
+              <KeyRound className="size-4" />
+              Change password
+            </button>
+          ) : (
+            <form
+              onSubmit={handlePasswordSubmit}
+              className="space-y-3 rounded-xl border border-neutral-100 p-4"
+            >
+              <EditField
+                label="Current password"
+                value={passwordForm.currentPassword}
+                onChange={(v) =>
+                  setPasswordForm((prev) => ({ ...prev, currentPassword: v }))
+                }
+                type="password"
+              />
+              <EditField
+                label="New password"
+                value={passwordForm.newPassword}
+                onChange={(v) =>
+                  setPasswordForm((prev) => ({ ...prev, newPassword: v }))
+                }
+                type="password"
+              />
+              <EditField
+                label="Confirm new password"
+                value={passwordForm.confirmPassword}
+                onChange={(v) =>
+                  setPasswordForm((prev) => ({ ...prev, confirmPassword: v }))
+                }
+                type="password"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={passwordSaving}
+                  className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {passwordSaving ? "Saving..." : "Save password"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setChangingPassword(false);
+                    setPasswordForm({
+                      currentPassword: "",
+                      newPassword: "",
+                      confirmPassword: "",
+                    });
+                  }}
+                  className="rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+
+          <DashboardLogoutButton />
+        </div>
       </AdminCard>
     </div>
   );

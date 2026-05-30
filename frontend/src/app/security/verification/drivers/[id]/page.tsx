@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 
 import DriverKycPanel from "@/components/admin/drivers/driver-kyc-panel";
 import SurfaceCard from "@/components/shared/dashboard/surface-card";
@@ -88,6 +89,11 @@ export default function SecurityDriverDetailPage() {
       try {
         const updated = await updateDriverKyc(id, payload);
         setDriver(updated);
+        toast.success(
+          payload.status === "APPROVED"
+            ? "Document approved"
+            : "Document rejected",
+        );
       } catch (reviewError) {
         console.error("Failed to update driver KYC:", reviewError);
         setError("Unable to update KYC status. Please try again.");

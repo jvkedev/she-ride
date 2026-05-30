@@ -19,7 +19,8 @@ import { CreateRideDto } from './dto/create-ride.dto';
 import { EstimateRideDto } from './dto/estimate-ride.dto';
 import { HistoryQueryDto } from './dto/history-ride.dto';
 import { haversineDistance } from './helpers/haversine.helper';
-import { calculateFare } from './helpers/fare.helper';
+import { FareConfigService } from '../platform/fare-config.service';
+import { RideRedisService } from '../redis/ride-redis.service';
 
 @Injectable()
 export class RidesService {
@@ -27,6 +28,8 @@ export class RidesService {
     private prisma: PrismaService,
     private otpService: OtpService,
     private gateway: RideGateway,
+    private rideRedis: RideRedisService,
+    private fareConfig: FareConfigService,
   ) {}
 
   // ========================== Estimate Ride ==========================
@@ -50,7 +53,10 @@ export class RidesService {
 
     const estimates = await Promise.all(
       vehicleTypes.map(async (vehicleType) => {
-        const estimatedFare = calculateFare(distanceKm, vehicleType);
+        const estimatedFare = await this.fareConfig.calculateFare(
+          distanceKm,
+          vehicleType,
+        );
         const nearbyCaptains = await this.findNearbyCaptains(
           dto.pickupLatitude,
           dto.pickupLongitude,
@@ -185,7 +191,9 @@ export class RidesService {
       });
     }
 
-    // Notify via socket
+    await this.rideRedis.deleteRideState(rideId);
+    await this.rideRedis.removeSearchingRide(rideId, ride.vehicleType);
+
     this.gateway.notifyRideStatusChange(rideId, {
       rideId,
       status: RideStatus.CANCELED,
@@ -257,6 +265,64 @@ export class RidesService {
     };
   }
 
+  async getRiderRideDetails(rideId: string, userId: string) {
+    const rider = await this.prisma.rider.findUnique({ where: { userId } });
+    if (!rider) throw new BadRequestException('Rider profile not found');
+
+    const ride = await this.prisma.ride.findUnique({
+      where: { id: rideId },
+      include: {
+        captain: {
+          include: {
+            user: { select: { fullName: true, phoneNumber: true } },
+            vehicle: true,
+          },
+        },
+      },
+    });
+    if (!ride) throw new NotFoundException('Ride not found');
+    if (ride.riderId !== rider.id) {
+      throw new UnauthorizedException('Not your ride');
+    }
+
+    return {
+      id: ride.id,
+      status: ride.status,
+      pickupAddress: ride.pickupAddress,
+      dropAddress: ride.dropAddress,
+      pickupLatitude: ride.pickupLatitude,
+      pickupLongitude: ride.pickupLongitude,
+      dropLatitude: ride.dropLatitude,
+      dropLongitude: ride.dropLongitude,
+      distanceInKm: ride.distanceInKm,
+      estimatedFare: ride.estimatedFare,
+      finalFare: ride.finalFare,
+      vehicleType: ride.vehicleType,
+      paymentMethod: ride.paymentMethod,
+      paymentStatus: ride.paymentStatus,
+      startedAt: ride.startedAt,
+      completedAt: ride.completedAt,
+      cancelledAt: ride.cancelledAt,
+      cancellationReason: ride.cancellationReason,
+      captain: ride.captain
+        ? {
+            name: ride.captain.user.fullName,
+            phone: ride.captain.user.phoneNumber,
+            rating: ride.captain.rating,
+            vehicle: ride.captain.vehicle
+              ? {
+                  brand: ride.captain.vehicle.brand,
+                  model: ride.captain.vehicle.model,
+                  color: ride.captain.vehicle.color,
+                  plate: ride.captain.vehicle.vehicleNumber,
+                  type: ride.captain.vehicle.vehicleType,
+                }
+              : null,
+          }
+        : null,
+    };
+  }
+
   async getRideDetails(rideId: string, userId: string) {
     const captain = await this.prisma.captain.findUnique({ where: { userId } });
     if (!captain) throw new BadRequestException('Captain profile not found');
@@ -280,11 +346,134 @@ export class RidesService {
       },
       pickupAddress: ride.pickupAddress,
       dropAddress: ride.dropAddress,
+      pickupLatitude: ride.pickupLatitude,
+      pickupLongitude: ride.pickupLongitude,
+      dropLatitude: ride.dropLatitude,
+      dropLongitude: ride.dropLongitude,
       estimatedFare: ride.estimatedFare,
       finalFare: ride.finalFare,
       distanceInKm: ride.distanceInKm,
       vehicleType: ride.vehicleType,
       paymentMethod: ride.paymentMethod,
+    };
+  }
+
+  async getCaptainActiveRide(userId: string) {
+    const captain = await this.prisma.captain.findUnique({ where: { userId } });
+    if (!captain) throw new BadRequestException('Captain profile not found');
+
+    const ride = await this.prisma.ride.findFirst({
+      where: {
+        captainId: captain.id,
+        status: {
+          in: [
+            RideStatus.ACCEPTED,
+            RideStatus.ARRIVING,
+            RideStatus.IN_PROGRESS,
+          ],
+        },
+      },
+      include: {
+        rider: {
+          include: {
+            user: { select: { fullName: true, phoneNumber: true } },
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    if (!ride) return null;
+
+    return {
+      rideId: ride.id,
+      status: ride.status,
+      rider: {
+        name: ride.rider.user.fullName,
+        phone: ride.rider.user.phoneNumber,
+      },
+      pickupAddress: ride.pickupAddress,
+      dropAddress: ride.dropAddress,
+      pickupLatitude: ride.pickupLatitude,
+      pickupLongitude: ride.pickupLongitude,
+      dropLatitude: ride.dropLatitude,
+      dropLongitude: ride.dropLongitude,
+      estimatedFare: ride.estimatedFare,
+      finalFare: ride.finalFare,
+      distanceInKm: ride.distanceInKm,
+      vehicleType: ride.vehicleType,
+      paymentMethod: ride.paymentMethod,
+    };
+  }
+
+  async getRiderActiveRide(userId: string) {
+    const rider = await this.prisma.rider.findUnique({ where: { userId } });
+    if (!rider) throw new BadRequestException('Rider profile not found');
+
+    const ride = await this.prisma.ride.findFirst({
+      where: {
+        riderId: rider.id,
+        status: {
+          in: [
+            RideStatus.SEARCHING,
+            RideStatus.ACCEPTED,
+            RideStatus.ARRIVING,
+            RideStatus.IN_PROGRESS,
+          ],
+        },
+      },
+      include: {
+        captain: {
+          include: {
+            user: { select: { fullName: true, phoneNumber: true } },
+            vehicle: {
+              select: {
+                brand: true,
+                model: true,
+                color: true,
+                vehicleNumber: true,
+                vehicleType: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!ride) return null;
+
+    return {
+      rideId: ride.id,
+      status: ride.status,
+      pickupAddress: ride.pickupAddress,
+      dropAddress: ride.dropAddress,
+      pickupLatitude: ride.pickupLatitude,
+      pickupLongitude: ride.pickupLongitude,
+      dropLatitude: ride.dropLatitude,
+      dropLongitude: ride.dropLongitude,
+      estimatedFare: ride.estimatedFare,
+      distanceInKm: ride.distanceInKm,
+      vehicleType: ride.vehicleType,
+      paymentMethod: ride.paymentMethod,
+      captain: ride.captain
+        ? {
+            name: ride.captain.user.fullName,
+            phone: ride.captain.user.phoneNumber,
+            rating: ride.captain.rating,
+            lat: ride.captain.currentLatitude,
+            lng: ride.captain.currentLongitude,
+            vehicle: ride.captain.vehicle
+              ? {
+                  brand: ride.captain.vehicle.brand,
+                  model: ride.captain.vehicle.model,
+                  color: ride.captain.vehicle.color,
+                  plate: ride.captain.vehicle.vehicleNumber,
+                  type: ride.captain.vehicle.vehicleType,
+                }
+              : null,
+          }
+        : null,
     };
   }
 
@@ -304,6 +493,7 @@ export class RidesService {
           in: [
             RideStatus.SEARCHING,
             RideStatus.ACCEPTED,
+            RideStatus.ARRIVING,
             RideStatus.IN_PROGRESS,
           ],
         },
@@ -319,7 +509,10 @@ export class RidesService {
       dto.dropLatitude,
       dto.dropLongitude,
     );
-    const estimatedFare = calculateFare(distanceKm, dto.vehicleType);
+    const estimatedFare = await this.fareConfig.calculateFare(
+      distanceKm,
+      dto.vehicleType,
+    );
 
     // 4. Find nearby captains
     const nearbyCaptains = await this.findNearbyCaptains(
@@ -345,6 +538,60 @@ export class RidesService {
         paymentMethod: dto.paymentMethod ?? PaymentMethod.CASH,
         status: RideStatus.SEARCHING,
       },
+    });
+
+    await this.rideRedis.setRideState({
+      rideId: ride.id,
+      status: RideStatus.SEARCHING,
+      riderId: rider.id,
+      vehicleType: dto.vehicleType,
+      pickupLat: dto.pickupLatitude,
+      pickupLng: dto.pickupLongitude,
+      dropLat: dto.dropLatitude,
+      dropLng: dto.dropLongitude,
+      searchingStep: 'SCANNING',
+      nearbyCaptains: nearbyCaptains.length,
+      updatedAt: new Date().toISOString(),
+    });
+
+    await this.rideRedis.addSearchingRide(ride.id, dto.vehicleType);
+
+    this.gateway.notifySearchingProgress(ride.id, {
+      step: 'SCANNING',
+      label: 'Searching nearby captains',
+      nearbyCaptains: nearbyCaptains.length,
+      etaSeconds: Math.max(30, nearbyCaptains.length > 0 ? 45 : 90),
+    });
+
+    setTimeout(() => {
+      this.gateway.notifySearchingProgress(ride.id, {
+        step: 'BROADCASTING',
+        label: 'Sending ride requests',
+        nearbyCaptains: nearbyCaptains.length,
+        etaSeconds: 40,
+      });
+    }, 600);
+
+    setTimeout(() => {
+      this.gateway.notifySearchingProgress(ride.id, {
+        step: 'WAITING',
+        label: 'Waiting for captain response',
+        nearbyCaptains: nearbyCaptains.length,
+        etaSeconds: 35,
+      });
+    }, 1400);
+
+    this.gateway.broadcastNewSearchingRide(dto.vehicleType, {
+      rideId: ride.id,
+      pickupAddress: dto.pickupAddress,
+      dropAddress: dto.dropAddress,
+      pickupLatitude: dto.pickupLatitude,
+      pickupLongitude: dto.pickupLongitude,
+      dropLatitude: dto.dropLatitude,
+      dropLongitude: dto.dropLongitude,
+      estimatedFare,
+      distanceInKm: parseFloat(distanceKm.toFixed(2)),
+      vehicleType: dto.vehicleType,
     });
 
     return {
@@ -407,7 +654,7 @@ export class RidesService {
       );
     }
 
-    // 7. Assign captain + update status
+    // 7. Assign captain + update status (keep online for location broadcasts)
     const updated = await this.prisma.ride.update({
       where: { id: rideId },
       data: {
@@ -419,25 +666,79 @@ export class RidesService {
         rider: {
           include: { user: true },
         },
+        captain: {
+          include: {
+            user: true,
+            vehicle: true,
+          },
+        },
       },
     });
 
-    // Send OTP to rider for ride verification
+    await this.rideRedis.removeSearchingRide(rideId, ride.vehicleType);
+    await this.rideRedis.patchRideState(rideId, {
+      status: RideStatus.ACCEPTED,
+      captainId: captain.id,
+      searchingStep: 'FOUND',
+    });
+
+    if (
+      captain.currentLatitude != null &&
+      captain.currentLongitude != null
+    ) {
+      await this.rideRedis.setCaptainLocation({
+        captainId: captain.id,
+        userId,
+        lat: captain.currentLatitude,
+        lng: captain.currentLongitude,
+        vehicleType: updated.captain?.vehicle?.vehicleType,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
     await this.otpService.sendOtp(
       OtpType.RIDE_START,
       updated.rider.user.phoneNumber,
     );
 
+    const vehicle = updated.captain?.vehicle;
+
+    this.gateway.notifySearchingProgress(rideId, {
+      step: 'FOUND',
+      label: 'Captain found',
+      etaSeconds: null,
+    });
+
     this.gateway.notifyRiderCaptainAccepted(updated.rider.user.id, {
       rideId: updated.id,
       status: updated.status,
       captain: {
-        name: captain.id, // we'll update this when we have captain name
+        name: updated.captain?.user.fullName ?? 'Captain',
+        phone: updated.captain?.user.phoneNumber ?? null,
+        rating: captain.rating,
         lat: captain.currentLatitude,
         lng: captain.currentLongitude,
+        vehicle: vehicle
+          ? {
+              brand: vehicle.brand,
+              model: vehicle.model,
+              color: vehicle.color,
+              plate: vehicle.vehicleNumber,
+              type: vehicle.vehicleType,
+            }
+          : null,
       },
       pickupAddress: updated.pickupAddress,
       dropAddress: updated.dropAddress,
+      pickupLatitude: updated.pickupLatitude,
+      pickupLongitude: updated.pickupLongitude,
+      dropLatitude: updated.dropLatitude,
+      dropLongitude: updated.dropLongitude,
+    });
+
+    this.gateway.notifyRideStatusChange(rideId, {
+      rideId: updated.id,
+      status: updated.status,
     });
 
     return {
@@ -461,6 +762,30 @@ export class RidesService {
     vehicleType: VehicleType,
     radiusKm: number,
   ): Promise<any[]> {
+    try {
+      const redisIds = await this.rideRedis.findNearbyCaptainIds(
+        lat,
+        lng,
+        vehicleType,
+        radiusKm,
+        5,
+      );
+      if (redisIds.length > 0) {
+        const captains = await this.prisma.captain.findMany({
+          where: {
+            id: { in: redisIds },
+            isOnline: true,
+            isVerified: true,
+            gender: 'FEMALE',
+          },
+          include: { vehicle: true },
+        });
+        return captains.filter((c) => c.vehicle?.vehicleType === vehicleType);
+      }
+    } catch {
+      // fallback to SQL
+    }
+
     return this.prisma.$queryRaw`
     SELECT * FROM (
       SELECT c.id, c."currentLatitude", c."currentLongitude",
@@ -493,6 +818,9 @@ export class RidesService {
       include: { vehicle: true }, // ← include vehicle to get vehicleType
     });
     if (!captain) throw new BadRequestException('Captain profile not found');
+    if (!captain.isVerified) {
+      return [];
+    }
     if (!captain.vehicle)
       throw new BadRequestException('Captain has no vehicle registered');
 
@@ -525,7 +853,10 @@ export class RidesService {
 
   // ========================== Update Captain Location ==========================
   async updateLocation(userId: string, lat: number, lng: number) {
-    const captain = await this.prisma.captain.findUnique({ where: { userId } });
+    const captain = await this.prisma.captain.findUnique({
+      where: { userId },
+      include: { vehicle: true },
+    });
     if (!captain) throw new BadRequestException('Captain profile not found');
 
     await this.prisma.captain.update({
@@ -535,6 +866,17 @@ export class RidesService {
         currentLongitude: lng,
       },
     });
+
+    if (captain.isOnline && captain.vehicle) {
+      await this.rideRedis.setCaptainLocation({
+        captainId: captain.id,
+        userId,
+        lat,
+        lng,
+        vehicleType: captain.vehicle.vehicleType,
+        updatedAt: new Date().toISOString(),
+      });
+    }
 
     return { success: true };
   }
@@ -552,17 +894,20 @@ export class RidesService {
 
     // No captain yet — return status so frontend can show "searching" state
     if (!ride.captain) {
+      const redisState = await this.rideRedis.getRideState(rideId);
       return {
-        status: ride.status,
+        status: redisState?.status ?? ride.status,
         lat: null,
         lng: null,
       };
     }
 
+    const redisLoc = await this.rideRedis.getCaptainLocation(ride.captain.id);
+
     return {
       status: ride.status,
-      lat: ride.captain.currentLatitude,
-      lng: ride.captain.currentLongitude,
+      lat: redisLoc?.lat ?? ride.captain.currentLatitude,
+      lng: redisLoc?.lng ?? ride.captain.currentLongitude,
     };
   }
 
@@ -589,6 +934,11 @@ export class RidesService {
         status: RideStatus.ARRIVING,
         arrivedAt: new Date(),
       },
+    });
+
+    this.gateway.notifyRideStatusChange(rideId, {
+      rideId: updated.id,
+      status: updated.status,
     });
 
     return {
@@ -638,6 +988,11 @@ export class RidesService {
       },
     });
 
+    this.gateway.notifyRideStatusChange(rideId, {
+      rideId: updated.id,
+      status: updated.status,
+    });
+
     return {
       rideId: updated.id,
       status: updated.status,
@@ -667,6 +1022,10 @@ export class RidesService {
         status: RideStatus.COMPLETED,
         finalFare: ride.estimatedFare,
         completedAt: new Date(),
+        paymentStatus:
+          ride.paymentMethod === 'CASH' || ride.paymentMethod === 'UPI'
+            ? 'PAID'
+            : ride.paymentStatus,
       },
     });
 
@@ -686,6 +1045,12 @@ export class RidesService {
         totalRides: { increment: 1 },
         lastRideAt: new Date(),
       },
+    });
+
+    this.gateway.notifyRideStatusChange(rideId, {
+      rideId: updated.id,
+      status: updated.status,
+      finalFare: updated.finalFare,
     });
 
     return {

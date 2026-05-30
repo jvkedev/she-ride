@@ -1,15 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { captainNavLinks } from "@/components/captain/layout/captain-nav-links";
 import DashboardLogoutButton from "@/components/shared/dashboard/logout-button";
-import {
-  CaptainProfile,
-  getCaptainProfile,
-} from "@/services/captain/captain-profile.service";
+import { useCaptainProfile } from "@/hooks/captain/use-captain-profile";
 import { cn } from "@/lib/utils";
 
 type CaptainSidebarProps = {
@@ -19,14 +15,8 @@ type CaptainSidebarProps = {
 export default function CaptainSidebar({
   isOnline = true,
 }: CaptainSidebarProps) {
-  const [profile, setProfile] = useState<CaptainProfile | null>(null);
+  const { data: profile } = useCaptainProfile();
   const pathname = usePathname();
-
-  useEffect(() => {
-    getCaptainProfile()
-      .then((data) => setProfile(data))
-      .catch(() => setProfile(null));
-  }, []);
 
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r border-neutral-200 bg-white lg:flex lg:h-full lg:min-h-0">

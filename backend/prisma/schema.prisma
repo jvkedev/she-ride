@@ -21,6 +21,32 @@ enum Gender {
   OTHER
 }
 
+/// Organizational department (metadata only — not used for authorization).
+enum AdminDepartment {
+  OPERATIONS
+  SAFETY
+  SUPPORT
+  FINANCE
+  TECHNOLOGY
+  MANAGEMENT
+}
+
+/// Job title within the organization (metadata only).
+enum AdminJobTitle {
+  ADMINISTRATOR
+  OPERATIONS_MANAGER
+  SAFETY_MANAGER
+  SUPPORT_EXECUTIVE
+  FINANCE_OFFICER
+  TECHNICAL_ADMINISTRATOR
+}
+
+/// Permission level for admin users (separate from User.role which must stay ADMIN for JWT).
+enum AdminPermissionRole {
+  SUPER_ADMIN
+  ADMIN
+}
+
 enum AccountStatus {
   ACTIVE
   BLOCKED
@@ -53,6 +79,20 @@ enum DocumentStatus {
   REJECTED
 }
 
+enum CaptainDocumentType {
+  DRIVING_LICENSE
+  VEHICLE_RC
+  VEHICLE_INSURANCE
+  GOVERNMENT_ID
+}
+
+enum CaptainVerificationStatus {
+  NOT_UPLOADED
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
 enum RideStatus {
   SEARCHING
   ACCEPTED
@@ -74,6 +114,40 @@ enum PaymentStatus {
   PAID
   FAILED
   REFUNDED
+}
+
+enum CaptainReportCategory {
+  UNSAFE_DRIVING
+  HARASSMENT
+  INAPPROPRIATE_BEHAVIOR
+  VEHICLE_ISSUE
+  ROUTE_ISSUE
+  FRAUD_OVERCHARGING
+  LATE_ARRIVAL
+  OTHER
+}
+
+enum CaptainReportStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum SupportTicketCategory {
+  RIDE_ISSUE
+  PAYMENT
+  ACCOUNT
+  SAFETY
+  APP_BUG
+  OTHER
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
 }
 
 enum OtpType {
@@ -232,6 +306,8 @@ model User {
 
   admin Admin?
 
+  securityStaff SecurityStaff?
+
   fraudCases        FraudCase[]
   fraudSignals      FraudSignal[]
   suspiciousAccount SuspiciousAccount?
@@ -270,6 +346,12 @@ model Rider {
 
   sosAlerts SosAlert[]
 
+  captainReports CaptainReport[]
+  supportTickets SupportTicket[]
+
+  defaultPaymentMethod PaymentMethod @default(CASH)
+  notifyRideUpdates    Boolean       @default(true)
+
   totalRides     Int @default(0)
   cancelledRides Int @default(0)
 
@@ -306,10 +388,18 @@ model Captain {
 
   behaviorFlags DriverBehaviorFlag[]
 
+  captainReports CaptainReport[]
+
   vehicle  Vehicle?
   document CaptainDocument?
 
   verifiedAt DateTime?
+
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  safetyAlertEnabled    Boolean @default(true)
+  notifyRequestAlerts   Boolean @default(true)
+  shareLiveLocation     Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -343,10 +433,34 @@ model CaptainDocument {
   uploadedAt DateTime  @default(now())
   verifiedAt DateTime?
 
+  items CaptainDocumentItem[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("captain_documents")
+}
+
+model CaptainDocumentItem {
+  id String @id @default(cuid())
+
+  documentId String
+  document   CaptainDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  documentType       CaptainDocumentType
+  documentUrl        String?
+  uploadedAt         DateTime?
+  verificationStatus CaptainVerificationStatus @default(NOT_UPLOADED)
+  rejectionReason    String?
+  reviewedBy         String?
+  reviewedAt         DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([documentId, documentType])
+  @@index([verificationStatus])
+  @@map("captain_document_items")
 }
 
 model Vehicle {
@@ -382,13 +496,31 @@ model Admin {
   gender      Gender?
   dateOfBirth DateTime?
 
-  department String?
-  jobTitle   String?
+  department     AdminDepartment?
+  jobTitle       AdminJobTitle?
+  permissionRole AdminPermissionRole @default(ADMIN)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("admins")
+}
+
+model SecurityStaff {
+  id String @id @default(cuid())
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  profileImage String?
+
+  gender      Gender?
+  dateOfBirth DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("security_staff")
 }
 
 model Ride {
@@ -417,6 +549,8 @@ model Ride {
   fraudCases    FraudCase[]
   incidents     Incident[]
   behaviorFlags DriverBehaviorFlag[]
+  captainReports CaptainReport[]
+  supportTickets SupportTicket[]
 
   vehicleType VehicleType
 
@@ -790,4 +924,55 @@ model EmergencyDispatch {
 
   @@index([sosAlertId])
   @@map("emergency_dispatches")
+}
+
+model CaptainReport {
+  id String @id @default(cuid())
+
+  rideId String
+  ride   Ride @relation(fields: [rideId], references: [id], onDelete: Cascade)
+
+  riderId String
+  rider   Rider @relation(fields: [riderId], references: [id], onDelete: Cascade)
+
+  captainId String
+  captain   Captain @relation(fields: [captainId], references: [id], onDelete: Cascade)
+
+  category    CaptainReportCategory
+  description String?
+  imageUrl    String?
+  status      CaptainReportStatus   @default(OPEN)
+  adminNote   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([rideId, riderId])
+  @@index([captainId])
+  @@index([status])
+  @@map("captain_reports")
+}
+
+model SupportTicket {
+  id String @id @default(cuid())
+
+  riderId String
+  rider   Rider @relation(fields: [riderId], references: [id], onDelete: Cascade)
+
+  rideId String?
+  ride   Ride?   @relation(fields: [rideId], references: [id], onDelete: SetNull)
+
+  category SupportTicketCategory
+  subject  String
+  description String
+  status   SupportTicketStatus @default(OPEN)
+
+  adminResponse String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([riderId])
+  @@index([status])
+  @@map("support_tickets")
 }

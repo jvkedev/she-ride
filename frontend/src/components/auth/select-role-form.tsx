@@ -63,7 +63,9 @@ export default function SelectRoleForm() {
       const res = await apiRequest("/auth/select-role", { role: selected }, token);
 
       if (res.accessToken && res.user) {
-        setAuthSession(res.accessToken, res.user as AuthUser);
+        setAuthSession(res.accessToken, res.user as AuthUser, {
+          refreshToken: res.refreshToken,
+        });
         clearRoleSelectionGrant();
       }
 

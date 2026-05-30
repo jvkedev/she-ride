@@ -4,8 +4,20 @@ import RequestActions from "@/components/captain/requests/request-actions";
 import RequestTimer from "@/components/captain/requests/request-timer";
 import CaptainCard from "@/components/captain/shared/captain-card";
 import { Badge } from "@/components/ui/badge";
-import type { RideRequest } from "@/lib/captain/captain-mock-data";
 import { captainHeading, captainMutedText } from "@/lib/captain/captain-styles";
+
+export type RideRequest = {
+  id: string;
+  passengerName: string;
+  passengerRating: number;
+  fare: number;
+  distance: string;
+  vehicleType: string;
+  paymentMethod: string;
+  eta: string;
+  pickup: string;
+  dropoff: string;
+};
 
 type RequestCardProps = {
   request: RideRequest;

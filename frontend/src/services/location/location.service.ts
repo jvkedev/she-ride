@@ -7,7 +7,7 @@ export interface LocationSuggestion {
   lng: number;
 }
 
-interface NominatimLocationResult {
+interface LocationApiResult {
   place_id: string;
   display_name: string;
   lat: string;
@@ -39,25 +39,64 @@ function buildDisplayNameFromAddress(
   return uniqueParts.slice(0, 3).join(", ") || fallback;
 }
 
+function mapResults(items: LocationApiResult[]): LocationSuggestion[] {
+  return items
+    .map((item) => ({
+      placeId: String(item.place_id),
+      displayName: item.display_name,
+      lat: parseFloat(item.lat),
+      lng: parseFloat(item.lon),
+    }))
+    .filter(
+      (s) =>
+        Number.isFinite(s.lat) &&
+        Number.isFinite(s.lng) &&
+        Math.abs(s.lat) <= 90 &&
+        Math.abs(s.lng) <= 180,
+    );
+}
+
+async function searchViaNominatim(query: string): Promise<LocationSuggestion[]> {
+  const { data } = await axios.get<LocationApiResult[]>(
+    "https://nominatim.openstreetmap.org/search",
+    {
+      params: {
+        q: query,
+        format: "json",
+        addressdetails: 1,
+        limit: 8,
+        countrycodes: "in",
+      },
+      headers: { "User-Agent": "SheRide/1.0" },
+      timeout: 8000,
+    },
+  );
+  return mapResults(data ?? []);
+}
+
 export async function searchLocations(
   query: string,
 ): Promise<LocationSuggestion[]> {
   if (!query || query.length < 3) return [];
 
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
   try {
-    const { data } = await axios.get(
-      `${process.env.NEXT_PUBLIC_API_URL}/location/search`,
+    const { data } = await axios.get<LocationApiResult[]>(
+      `${apiUrl}/location/search`,
       {
         params: { q: query },
+        timeout: 8000,
       },
     );
+    const results = mapResults(data ?? []);
+    if (results.length > 0) return results;
+  } catch {
+    // fall through to Nominatim
+  }
 
-    return (data as NominatimLocationResult[]).map((item) => ({
-      placeId: item.place_id,
-      displayName: item.display_name,
-      lat: parseFloat(item.lat),
-      lng: parseFloat(item.lon),
-    }));
+  try {
+    return await searchViaNominatim(query);
   } catch (err) {
     console.error("Location search failed:", err);
     return [];
@@ -68,61 +107,74 @@ export async function reverseGeocode(
   lat: number,
   lng: number,
 ): Promise<LocationSuggestion | null> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+  if (process.env.NODE_ENV !== "production") {
+    console.info("[SheRide][reverseGeocode] start", { lat, lng });
+  }
+
   try {
-    // First try backend endpoint if available
-    try {
-      const { data } = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/location/reverse`,
+    if (apiUrl) {
+      const { data } = await axios.get<LocationApiResult>(
+        `${apiUrl}/location/reverse`,
         {
           params: { lat, lng },
-          timeout: 5000,
+          timeout: 8000,
         },
       );
 
-      if (data) {
-        return {
-          placeId: data.place_id || `${lat},${lng}`,
-          displayName: data.display_name || `${lat}, ${lng}`,
-          lat: parseFloat(data.lat) || lat,
-          lng: parseFloat(data.lon) || lng,
+      if (data?.display_name) {
+        const result = {
+          placeId: String(data.place_id) || `${lat},${lng}`,
+          displayName: data.display_name,
+          lat,
+          lng,
         };
+        if (process.env.NODE_ENV !== "production") {
+          console.info("[SheRide][reverseGeocode] api success", result);
+        }
+        return result;
       }
-    } catch {
-      console.warn("Backend reverse geocode not available, using Nominatim");
     }
+  } catch (err) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[SheRide][reverseGeocode] api failed, using Nominatim", err);
+    }
+  }
 
-    // Fallback to Nominatim (OpenStreetMap) - with address details for better precision
+  try {
     const { data } = await axios.get(
-      `https://nominatim.openstreetmap.org/reverse`,
+      "https://nominatim.openstreetmap.org/reverse",
       {
         params: {
           lat,
           lon: lng,
           format: "json",
           zoom: 18,
-          addressdetails: 1, // Get detailed address components
+          addressdetails: 1,
         },
+        headers: { "User-Agent": "SheRide/1.0" },
         timeout: 5000,
       },
     );
 
-    if (data && data.address) {
+    if (data?.address) {
       const displayName = buildDisplayNameFromAddress(
         data.address,
         data.display_name || `${lat}, ${lng}`,
       );
 
       return {
-        placeId: data.place_id || `${lat},${lng}`,
+        placeId: String(data.place_id) || `${lat},${lng}`,
         displayName: displayName || data.display_name,
         lat,
         lng,
       };
     }
 
-    if (data && data.display_name) {
+    if (data?.display_name) {
       return {
-        placeId: data.place_id || `${lat},${lng}`,
+        placeId: String(data.place_id) || `${lat},${lng}`,
         displayName: data.display_name,
         lat,
         lng,

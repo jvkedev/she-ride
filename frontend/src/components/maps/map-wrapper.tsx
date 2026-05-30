@@ -15,14 +15,20 @@ type MapWrapperProps = {
   pickup?: [number, number];
   drop?: [number, number];
   route?: [number, number][];
+  routeIsPreview?: boolean;
   nearbyCaptains?: number;
+  routeDistanceKm?: number;
+  routeDurationMin?: number;
 };
 
 export default function MapWrapper({
   pickup,
   drop,
   route,
+  routeIsPreview,
   nearbyCaptains,
+  routeDistanceKm,
+  routeDurationMin,
 }: MapWrapperProps) {
   return (
     <div className="h-full min-h-0 w-full">
@@ -30,7 +36,10 @@ export default function MapWrapper({
         pickup={pickup}
         drop={drop}
         route={route}
+        routeIsPreview={routeIsPreview}
         nearbyCaptains={nearbyCaptains}
+        routeDistanceKm={routeDistanceKm}
+        routeDurationMin={routeDurationMin}
       />
     </div>
   );

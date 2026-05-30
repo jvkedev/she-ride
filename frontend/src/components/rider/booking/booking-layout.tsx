@@ -1,13 +1,33 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import PaymentRequestBar from "@/components/rider/booking/payment-request-bar";
 import RideOptionsList from "@/components/rider/booking/ride-options-list";
 import TripForm from "@/components/rider/booking/trip-form";
+import FindingRideSheet from "@/components/rider/booking/finding-ride-sheet";
+import { useTripRoute } from "@/hooks/routing/use-trip-route";
+import { prefetchRoute } from "@/services/routing/routing.service";
 import { cn } from "@/lib/utils";
-import { getRoute } from "@/services/socket/socket.service";
 import { RideEstimate } from "@/services/rides/rides.service";
 import { LocationSuggestion } from "@/services/location/location.service";
+import { normalizeLatLng } from "@/lib/maps/map-camera";
+import type { CaptainInfo } from "@/lib/ride/captain-types";
+
+function toMapPoint(
+  loc: LocationSuggestion | null,
+): [number, number] | undefined {
+  return normalizeLatLng(loc ? [loc.lat, loc.lng] : null) ?? undefined;
+}
+
+function toCoords(
+  loc: LocationSuggestion | null,
+): { lat: number; lng: number } | null {
+  const pt = normalizeLatLng(loc ? [loc.lat, loc.lng] : null);
+  if (!pt) return null;
+  return { lat: pt[0], lng: pt[1] };
+}
+
 const VEHICLE_TYPE_MAP: Record<string, string> = {
   "She Go": "CAR",
   "She Auto": "AUTO",
@@ -17,34 +37,44 @@ const VEHICLE_TYPE_MAP: Record<string, string> = {
 
 const MapPanelSection = dynamic(
   () => import("@/components/rider/booking/map-panel-section"),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-full animate-pulse rounded-2xl bg-neutral-200" />
-    ),
-  },
+  { ssr: false },
 );
 
 const RideLiveMap = dynamic(
   () => import("@/components/rider/booking/ride-live-map"),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-full animate-pulse rounded-2xl bg-neutral-200" />
-    ),
-  },
+  { ssr: false },
 );
 
 type BookingStep = "search" | "rides" | "tracking";
 
 export default function BookingLayout() {
+  const router = useRouter();
   const [step, setStep] = useState<BookingStep>("search");
   const [selectedRide, setSelectedRide] = useState("She Go");
   const [estimates, setEstimates] = useState<RideEstimate[]>([]);
   const [pickup, setPickup] = useState<LocationSuggestion | null>(null);
   const [drop, setDrop] = useState<LocationSuggestion | null>(null);
   const [activeRideId, setActiveRideId] = useState<string | null>(null);
-  const [route, setRoute] = useState<[number, number][]>([]);
+  const [rideStatus, setRideStatus] = useState<string>("SEARCHING");
+  const [captain, setCaptain] = useState<CaptainInfo | null>(null);
+  const [findingLabel, setFindingLabel] = useState<string | null>(null);
+
+  const pickupCoords = useMemo(() => toCoords(pickup), [pickup]);
+  const dropCoords = useMemo(() => toCoords(drop), [drop]);
+
+  const { route, distanceKm, durationMin, isPreview } = useTripRoute(
+    pickupCoords,
+    dropCoords,
+  );
+
+  function handleDropChange(location: LocationSuggestion) {
+    setDrop(location);
+    const p = toCoords(pickup);
+    const d = toCoords(location);
+    if (p && d) {
+      prefetchRoute(p.lat, p.lng, d.lat, d.lng);
+    }
+  }
 
   function handleSearch(
     results: RideEstimate[],
@@ -54,41 +84,36 @@ export default function BookingLayout() {
     setEstimates(results);
     setPickup(p);
     setDrop(d);
+    const pickupPt = toCoords(p);
+    const dropPt = toCoords(d);
+    if (pickupPt && dropPt) {
+      prefetchRoute(pickupPt.lat, pickupPt.lng, dropPt.lat, dropPt.lng);
+    }
     setStep("rides");
   }
 
   function handleRideRequested(rideId: string) {
     setActiveRideId(rideId);
+    setRideStatus("SEARCHING");
+    setCaptain(null);
+    setFindingLabel("Finding your ride…");
     setStep("tracking");
   }
 
-  useEffect(() => {
-    let cancelled = false;
+  function handleRideCanceled() {
+    setActiveRideId(null);
+    setCaptain(null);
+    setRideStatus("SEARCHING");
+    setFindingLabel(null);
+    setStep("rides");
+  }
 
-    async function loadRoute() {
-      if (!pickup || !drop) {
-        setRoute([]);
-        return;
-      }
-
-      const routeData = await getRoute(
-        pickup.lat,
-        pickup.lng,
-        drop.lat,
-        drop.lng,
-      );
-
-      if (!cancelled) {
-        setRoute(routeData);
-      }
-    }
-
-    loadRoute();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [pickup, drop]);
+  function handleRideCompleted() {
+    setActiveRideId(null);
+    setCaptain(null);
+    setFindingLabel(null);
+    router.push("/rider/history");
+  }
 
   const selectedEstimate = estimates.find((e) => {
     const map: Record<string, string> = {
@@ -99,6 +124,52 @@ export default function BookingLayout() {
     };
     return map[e.vehicleType] === selectedRide;
   });
+
+  const nearbyCaptains = selectedEstimate?.nearbyCaptains ?? 0;
+
+  const mapPanel = (
+    <div className="relative h-full min-h-0">
+      {activeRideId ? (
+        <>
+          <RideLiveMap
+            rideId={activeRideId}
+            pickupLat={pickup?.lat}
+            pickupLng={pickup?.lng}
+            dropLat={drop?.lat}
+            dropLng={drop?.lng}
+            tripRoute={route}
+            vehicleType={VEHICLE_TYPE_MAP[selectedRide]}
+          />
+          <FindingRideSheet
+            rideId={activeRideId}
+            pickupLabel={pickup?.displayName}
+            dropLabel={drop?.displayName}
+            onCanceled={handleRideCanceled}
+            onCompleted={handleRideCompleted}
+            onCaptainUpdate={setCaptain}
+            onRideStatusChange={(status) => {
+              setRideStatus(status);
+              if (status === "SEARCHING") {
+                setFindingLabel("Finding your ride…");
+              } else if (status === "ACCEPTED" || status === "ARRIVING") {
+                setFindingLabel(null);
+              }
+            }}
+          />
+        </>
+      ) : (
+        <MapPanelSection
+          pickup={toMapPoint(pickup)}
+          drop={toMapPoint(drop)}
+          route={route}
+          routeIsPreview={isPreview}
+          nearbyCaptains={nearbyCaptains}
+          routeDistanceKm={distanceKm}
+          routeDurationMin={durationMin}
+        />
+      )}
+    </div>
+  );
 
   const rideOptions = (
     <RideOptionsList
@@ -119,29 +190,6 @@ export default function BookingLayout() {
     />
   );
 
-  // Map panel — shows captain live location after ride is requested
-  const nearbyCaptains = selectedEstimate?.nearbyCaptains ?? 0;
-
-  const mapPanel = (
-    <div className="h-full min-h-0">
-      {activeRideId ? (
-        <RideLiveMap
-          rideId={activeRideId}
-          pickupLat={pickup?.lat}
-          pickupLng={pickup?.lng}
-          vehicleType={VEHICLE_TYPE_MAP[selectedRide]}
-        />
-      ) : (
-        <MapPanelSection
-          pickup={pickup ? [pickup.lat, pickup.lng] : undefined}
-          drop={drop ? [drop.lat, drop.lng] : undefined}
-          route={route}
-          nearbyCaptains={nearbyCaptains}
-        />
-      )}
-    </div>
-  );
-
   return (
     <div
       className={cn(
@@ -154,7 +202,15 @@ export default function BookingLayout() {
       <aside className="rider-panel-scroll min-h-0 overflow-y-auto border-neutral-200 bg-white lg:border-r">
         <TripForm
           showSearchButton={step === "search"}
+          pickup={pickup}
+          drop={drop}
+          onPickupChange={setPickup}
+          onDropChange={handleDropChange}
           onSearch={handleSearch}
+          isTracking={step === "tracking"}
+          rideStatus={rideStatus}
+          captain={captain}
+          findingLabel={findingLabel ?? undefined}
         />
       </aside>
 
@@ -186,25 +242,22 @@ export default function BookingLayout() {
         <div className="shrink-0 border-t border-neutral-200 p-4 lg:hidden">
           <div className="h-56 min-h-56 overflow-hidden rounded-2xl">
             <MapPanelSection
-              pickup={pickup ? [pickup.lat, pickup.lng] : undefined}
-              drop={drop ? [drop.lat, drop.lng] : undefined}
+              pickup={toMapPoint(pickup)}
+              drop={toMapPoint(drop)}
               route={route}
+              routeIsPreview={isPreview}
               nearbyCaptains={nearbyCaptains}
+              routeDistanceKm={distanceKm}
+              routeDurationMin={durationMin}
             />
           </div>
         </div>
       )}
 
       {step === "tracking" && (
-        <div className="shrink-0 border-t border-neutral-200 p-4 lg:hidden">
-          <div className="h-56 min-h-56 overflow-hidden rounded-2xl">
-            {activeRideId && (
-              <RideLiveMap
-                rideId={activeRideId}
-                pickupLat={pickup?.lat}
-                pickupLng={pickup?.lng}
-              />
-            )}
+        <div className="relative shrink-0 border-t border-neutral-200 p-4 lg:hidden">
+          <div className="h-[min(56dvh,420px)] min-h-56 overflow-hidden rounded-2xl">
+            {mapPanel}
           </div>
         </div>
       )}

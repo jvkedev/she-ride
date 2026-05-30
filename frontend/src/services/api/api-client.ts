@@ -28,12 +28,12 @@ export async function apiFetch(
       return res;
     }
 
-    return fetch(`${API}${path}`, {
+    return apiFetch(path, {
       ...options,
+      _retry: true,
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${newToken}`,
         ...options.headers,
+        Authorization: `Bearer ${newToken}`,
       },
     });
   }

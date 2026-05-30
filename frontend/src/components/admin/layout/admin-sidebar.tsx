@@ -5,11 +5,13 @@ import { usePathname } from "next/navigation";
 
 import DashboardLogoutButton from "@/components/shared/dashboard/logout-button";
 import { adminNavLinks } from "@/lib/admin/nav-links";
-import { adminProfile } from "@/lib/admin/mock-data";
+import { useAdminProfile } from "@/hooks/admin/use-admin-profile";
 import { cn } from "@/lib/utils";
 
 export default function AdminSidebar() {
   const pathname = usePathname();
+  const { data: profile } = useAdminProfile();
+  const displayName = profile?.name ?? "Admin";
 
   return (
     <aside className="hidden h-full w-60 shrink-0 flex-col border-r border-neutral-200 bg-white lg:flex">
@@ -51,14 +53,25 @@ export default function AdminSidebar() {
 
       <div className="shrink-0 border-t border-neutral-100 p-4">
         <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-full bg-neutral-200 text-sm font-semibold text-neutral-700">
-            {adminProfile.name.charAt(0)}
+          <div className="flex size-10 items-center justify-center overflow-hidden rounded-full bg-neutral-200 text-sm font-semibold text-neutral-700">
+            {profile?.profileImage ? (
+              <img src={profile.profileImage} alt="" className="size-full object-cover" />
+            ) : (
+              displayName.charAt(0)
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-neutral-900">
-              {adminProfile.name}
+              {displayName}
             </p>
-            <p className="text-xs text-neutral-500">{adminProfile.role}</p>
+            <p className="truncate text-xs text-neutral-500">
+              {profile?.jobTitleLabel ?? "Admin"}
+            </p>
+            {profile?.departmentLabel ? (
+              <p className="truncate text-[10px] text-neutral-400">
+                {profile.departmentLabel}
+              </p>
+            ) : null}
           </div>
         </div>
         <DashboardLogoutButton className="mt-3" />

@@ -1,62 +1,104 @@
 "use client";
 
+import { Loader2, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
+
 import AlertCard from "@/components/shared/security/alert-card";
-import IncidentTimeline from "@/components/shared/security/incident-timeline";
 import AdminLiveMap from "@/components/shared/maps/admin-live-map";
 import SurfaceCard from "@/components/shared/dashboard/surface-card";
 import { Button } from "@/components/ui/button";
-import { sosAlerts } from "@/lib/security/mock-data";
-
-const timeline = [
-  { id: "t1", title: "SOS triggered by rider", time: "2:40 PM" },
-  { id: "t2", title: "Auto-alert to security ops", time: "2:40 PM" },
-  { id: "t3", title: "Escalated to L2 response", time: "2:41 PM" },
-  { id: "t4", title: "Live tracking engaged", time: "2:42 PM" },
-];
+import { mapSosAlerts } from "@/lib/security/sos-utils";
+import { useActiveSos, useResolveSos } from "@/hooks/security/use-sos";
 
 export default function SosMonitoringPanel() {
-  const active = sosAlerts.filter((a) => a.status !== "resolved");
+  const { data, isLoading, isError, refetch, isFetching } = useActiveSos();
+  const resolveSos = useResolveSos();
+
+  const active = mapSosAlerts(data ?? []);
+
+  async function handleResolve(id: string) {
+    try {
+      await resolveSos.mutateAsync({
+        id,
+        status: "RESOLVED",
+        resolutionNote: "Resolved from SOS center",
+      });
+      toast.success("SOS alert resolved");
+    } catch {
+      toast.error("Failed to resolve SOS alert");
+    }
+  }
 
   return (
     <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,280px)_1fr] lg:p-5">
       <div className="dashboard-panel-scroll space-y-4 overflow-y-auto p-4 lg:p-0">
         <SurfaceCard padding="sm">
-          <h2 className="text-sm font-semibold text-neutral-900">Emergency actions</h2>
-          <div className="mt-3 grid gap-2">
-            <Button variant="destructive" className="h-10 rounded-lg">
-              Dispatch emergency team
-            </Button>
-            <Button variant="outline" className="h-10 rounded-lg">
-              Contact local authorities
-            </Button>
-            <Button variant="outline" className="h-10 rounded-lg">
-              Notify trusted contacts
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-neutral-900">
+              Active SOS alerts
+            </h2>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-lg"
+              onClick={() => refetch()}
+              disabled={isFetching}
+            >
+              {isFetching ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="size-3.5" />
+              )}
             </Button>
           </div>
+          <p className="mt-1 text-xs text-neutral-500">
+            Live alerts from riders and active rides.
+          </p>
         </SurfaceCard>
 
-        {active.map((alert) => (
-          <AlertCard
-            key={alert.id}
-            title={`SOS · ${alert.rideId}`}
-            description={`${alert.riderName} · ${alert.driverName} · ${alert.location}`}
-            priority={alert.priority}
-            time={alert.triggeredAt}
-            pulse={alert.priority === "critical"}
-            actions={
-              <Button size="sm" className="rounded-lg text-xs">
-                {alert.escalated ? "L2 Active" : "Escalate"}
-              </Button>
-            }
-          />
-        ))}
-
-        <SurfaceCard>
-          <h3 className="text-sm font-semibold text-neutral-900">Emergency timeline</h3>
-          <div className="mt-4">
-            <IncidentTimeline events={timeline} />
+        {isLoading ? (
+          <div className="flex items-center gap-2 py-8 text-sm text-neutral-500">
+            <Loader2 className="size-4 animate-spin" />
+            Loading SOS alerts…
           </div>
-        </SurfaceCard>
+        ) : isError ? (
+          <SurfaceCard padding="sm">
+            <p className="text-sm text-red-600">Failed to load SOS alerts.</p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-3 rounded-lg"
+              onClick={() => refetch()}
+            >
+              Retry
+            </Button>
+          </SurfaceCard>
+        ) : active.length === 0 ? (
+          <SurfaceCard padding="sm">
+            <p className="text-sm text-neutral-500">No active SOS alerts.</p>
+          </SurfaceCard>
+        ) : (
+          active.map((alert) => (
+            <AlertCard
+              key={alert.id}
+              title={`SOS · ${alert.rideId}`}
+              description={`${alert.riderName} · ${alert.driverName} · ${alert.location}`}
+              priority={alert.priority}
+              time={alert.triggeredAt}
+              pulse
+              actions={
+                <Button
+                  size="sm"
+                  className="rounded-lg text-xs"
+                  disabled={resolveSos.isPending}
+                  onClick={() => handleResolve(alert.id)}
+                >
+                  Resolve
+                </Button>
+              }
+            />
+          ))
+        )}
       </div>
 
       <div className="min-h-[320px] flex-1 p-4 pt-0 lg:p-0">

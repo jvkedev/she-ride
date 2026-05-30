@@ -21,9 +21,14 @@ import { GatewayModule } from './modules/gateway/gateway.module';
 import { ProfileModule } from './modules/profile/profile.module';
 import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
 import { SecurityModule } from './modules/security/security.module';
+import { RedisModule } from './modules/redis/redis.module';
+import { ReportsModule } from './modules/reports/reports.module';
+import { SupportModule } from './modules/support/support.module';
+import { PlatformModule } from './modules/platform/platform.module';
 
 @Module({
   imports: [
+    RedisModule,
     ThrottlerModule.forRoot({
       skipIf: (context: ExecutionContext): boolean => {
         const request = context.switchToHttp().getRequest<Request>();
@@ -38,8 +43,8 @@ import { SecurityModule } from './modules/security/security.module';
       throttlers: [
         {
           name: 'default',
-          ttl: 60_000, // 1 min window
-          limit: 20, // 20 requests per min globally
+          ttl: 60_000,
+          limit: 150,
         },
       ],
       storage: new ThrottlerStorageRedisService(env.REDIS_URL),
@@ -60,6 +65,9 @@ import { SecurityModule } from './modules/security/security.module';
     ProfileModule,
     CloudinaryModule,
     SecurityModule,
+    ReportsModule,
+    SupportModule,
+    PlatformModule,
   ],
   controllers: [UserController],
   providers: [

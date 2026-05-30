@@ -5,6 +5,7 @@ import {
   Get,
   Patch,
   Body,
+  Query,
   UseGuards,
   Request,
 } from '@nestjs/common';
@@ -15,8 +16,8 @@ import { Roles } from '../../auth/decorators/roles.decorator';
 import { IsEnum } from 'class-validator';
 
 class SetDefaultMethodDto {
-  @IsEnum(['CASH', 'UPI'])
-  method!: 'CASH' | 'UPI';
+  @IsEnum(['CASH', 'UPI', 'CARD'])
+  method!: 'CASH' | 'UPI' | 'CARD';
 }
 
 @Controller('rider/payments')
@@ -45,7 +46,15 @@ export class PaymentController {
 
   /** GET /rider/payments/history */
   @Get('history')
-  getPaymentHistory(@Request() req) {
-    return this.paymentService.getPaymentHistory(req.user.id);
+  getPaymentHistory(
+    @Request() req,
+    @Query('page') page = '1',
+    @Query('limit') limit = '10',
+  ) {
+    return this.paymentService.getPaymentHistory(
+      req.user.id,
+      Number(page) || 1,
+      Number(limit) || 10,
+    );
   }
 }

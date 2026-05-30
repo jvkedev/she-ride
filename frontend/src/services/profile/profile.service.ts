@@ -15,17 +15,16 @@ export interface RiderProfile {
   profileImage: string | null;
   gender: string | null;
   dateOfBirth: string | null;
-  walletBalance: number;
   rating: number;
   totalRides: number;
   cancelledRides: number;
   emergencyContactName: string | null;
   emergencyContactPhone: string | null;
-  defaultPickupAddress: string | null;
-  defaultDropAddress: string | null;
   ridePreference: string | null;
   safetyAlertEnabled: boolean;
   shareLiveLocation: boolean;
+  notifyRideUpdates: boolean;
+  defaultPaymentMethod: string;
   memberSince: string;
 }
 
@@ -37,7 +36,20 @@ export async function getRiderProfile(): Promise<RiderProfile> {
 }
 
 export async function updateRiderProfile(
-  payload: Partial<RiderProfile>,
+  payload: Partial<
+    Pick<
+      RiderProfile,
+      | "fullName"
+      | "email"
+      | "gender"
+      | "emergencyContactName"
+      | "emergencyContactPhone"
+      | "ridePreference"
+      | "safetyAlertEnabled"
+      | "shareLiveLocation"
+      | "notifyRideUpdates"
+    >
+  > & { dateOfBirth?: string },
 ): Promise<Partial<RiderProfile>> {
   const { data } = await api.patch("/profile/rider", payload, {
     headers: authHeader(),
@@ -58,7 +70,6 @@ export async function uploadProfilePhoto(
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
       body: formData,
-      // No Content-Type header — browser sets it automatically with boundary for multipart
     },
   );
   if (!res.ok) throw new Error("Failed to upload photo");

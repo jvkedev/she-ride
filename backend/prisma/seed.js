@@ -1,8 +1,14 @@
-const { PrismaClient, UserRole } = require('@prisma/client');
+const {
+  PrismaClient,
+  UserRole,
+  AdminDepartment,
+  AdminJobTitle,
+  AdminPermissionRole,
+} = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
-async function main() {
+async function ensureAdminProfiles() {
   const adminUsers = await prisma.user.findMany({
     where: { role: UserRole.ADMIN },
     select: {
@@ -11,11 +17,6 @@ async function main() {
       admin: { select: { id: true } },
     },
   });
-
-  if (adminUsers.length === 0) {
-    console.log('No ADMIN users found. Create an admin user first, then re-run seed.');
-    return;
-  }
 
   let created = 0;
 
@@ -28,8 +29,9 @@ async function main() {
     await prisma.admin.create({
       data: {
         userId: user.id,
-        department: 'Operations',
-        jobTitle: 'Platform Admin',
+        department: AdminDepartment.OPERATIONS,
+        jobTitle: AdminJobTitle.ADMINISTRATOR,
+        permissionRole: AdminPermissionRole.ADMIN,
       },
     });
 
@@ -38,7 +40,46 @@ async function main() {
   }
 
   const total = await prisma.admin.count();
-  console.log(`Done. ${created} profile(s) created. ${total} row(s) in admins table.`);
+  console.log(
+    `Admins: ${created} profile(s) created. ${total} row(s) in admins table.`,
+  );
+}
+
+async function ensureSecurityProfiles() {
+  const securityUsers = await prisma.user.findMany({
+    where: { role: UserRole.SECURITY },
+    select: {
+      id: true,
+      fullName: true,
+      securityStaff: { select: { id: true } },
+    },
+  });
+
+  let created = 0;
+
+  for (const user of securityUsers) {
+    if (user.securityStaff) {
+      console.log(`Security profile already exists for ${user.fullName}`);
+      continue;
+    }
+
+    await prisma.securityStaff.create({
+      data: { userId: user.id },
+    });
+
+    created += 1;
+    console.log(`Created security profile for ${user.fullName}`);
+  }
+
+  const total = await prisma.securityStaff.count();
+  console.log(
+    `Security: ${created} profile(s) created. ${total} row(s) in security_staff table.`,
+  );
+}
+
+async function main() {
+  await ensureAdminProfiles();
+  await ensureSecurityProfiles();
 }
 
 main()

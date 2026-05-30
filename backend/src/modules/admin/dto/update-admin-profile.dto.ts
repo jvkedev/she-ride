@@ -4,10 +4,11 @@ import {
   IsEnum,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
 } from 'class-validator';
 
-import { Gender } from '@prisma/client';
+import { AdminDepartment, AdminJobTitle, Gender } from '@prisma/client';
 
 export class UpdateAdminProfileDto {
   @IsOptional()
@@ -20,6 +21,13 @@ export class UpdateAdminProfileDto {
   email?: string;
 
   @IsOptional()
+  @IsString()
+  @Matches(/^[6-9]\d{9}$/, {
+    message: 'Phone number must be a valid 10-digit Indian mobile number',
+  })
+  phoneNumber?: string;
+
+  @IsOptional()
   @IsEnum(Gender)
   gender?: Gender;
 
@@ -28,12 +36,10 @@ export class UpdateAdminProfileDto {
   dateOfBirth?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  department?: string;
+  @IsEnum(AdminDepartment)
+  department?: AdminDepartment;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  jobTitle?: string;
+  @IsEnum(AdminJobTitle)
+  jobTitle?: AdminJobTitle;
 }

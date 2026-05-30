@@ -3,10 +3,11 @@
 import dynamic from "next/dynamic";
 
 import TrackRidePanel from "@/components/rider/track/track-ride-panel";
+import type { RiderActiveRide } from "@/services/rides/rides.service";
 import { cn } from "@/lib/utils";
 
-const RiderMapPanel = dynamic(
-  () => import("@/components/rider/shared/rider-map-panel"),
+const RideLiveMap = dynamic(
+  () => import("@/components/rider/booking/ride-live-map"),
   {
     ssr: false,
     loading: () => (
@@ -16,11 +17,14 @@ const RiderMapPanel = dynamic(
 );
 
 type TrackRideLayoutProps = {
-  pickup: string;
-  dropoff: string;
+  ride: RiderActiveRide;
+  etaMinutes?: number | null;
 };
 
-export default function TrackRideLayout({ pickup, dropoff }: TrackRideLayoutProps) {
+export default function TrackRideLayout({
+  ride,
+  etaMinutes,
+}: TrackRideLayoutProps) {
   return (
     <div
       className={cn(
@@ -29,28 +33,36 @@ export default function TrackRideLayout({ pickup, dropoff }: TrackRideLayoutProp
       )}
     >
       <aside className="rider-panel-scroll min-h-0 flex-1 overflow-y-auto border-neutral-200 bg-white lg:flex-none lg:border-r">
-        <TrackRidePanel />
+        <TrackRidePanel ride={ride} etaMinutes={etaMinutes} />
       </aside>
 
       <div className="relative hidden min-h-0 lg:block">
         <div className="absolute inset-0 p-4 lg:p-5">
-          <RiderMapPanel
-            showRouteLabels
-            pickup={pickup}
-            dropoff={dropoff}
-            className="h-full min-h-0"
+          <RideLiveMap
+            rideId={ride.rideId}
+            pickupLat={ride.pickupLatitude}
+            pickupLng={ride.pickupLongitude}
+            dropLat={ride.dropLatitude}
+            dropLng={ride.dropLongitude}
+            vehicleType={ride.vehicleType}
+            initialStatus={ride.status}
           />
         </div>
       </div>
 
       <div className="shrink-0 border-t border-neutral-200 bg-white p-4 lg:hidden">
         <div className="h-56 min-h-56 overflow-hidden rounded-2xl border border-neutral-200">
-          <RiderMapPanel
-            showRouteLabels
-            pickup={pickup}
-            dropoff={dropoff}
-            className="h-full min-h-56 rounded-2xl"
-          />
+          <div className="h-full min-h-56 rounded-2xl overflow-hidden">
+            <RideLiveMap
+              rideId={ride.rideId}
+              pickupLat={ride.pickupLatitude}
+              pickupLng={ride.pickupLongitude}
+              dropLat={ride.dropLatitude}
+              dropLng={ride.dropLongitude}
+              vehicleType={ride.vehicleType}
+              initialStatus={ride.status}
+            />
+          </div>
         </div>
       </div>
     </div>

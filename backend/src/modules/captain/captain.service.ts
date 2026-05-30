@@ -1,12 +1,89 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { DocumentStatus, RideStatus } from '@prisma/client';
+import { DocumentStatus, RideStatus, AuditAction } from '@prisma/client';
 import { UpdateCaptainProfileDto } from './dto/update-captain-profile.dto';
 import { v2 as cloudinary } from 'cloudinary';
+import { RideRedisService } from '../redis/ride-redis.service';
+import { CaptainVerificationService } from './captain-verification.service';
 
 @Injectable()
 export class CaptainService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private rideRedis: RideRedisService,
+    private verificationService: CaptainVerificationService,
+  ) {}
+
+  async getDashboard(userId: string) {
+    const captain = await this.prisma.captain.findUnique({
+      where: { userId },
+      include: {
+        user: { select: { fullName: true } },
+        vehicle: { select: { vehicleType: true, vehicleNumber: true } },
+      },
+    });
+    if (!captain) throw new NotFoundException('Captain profile not found');
+
+    const now = new Date();
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date(startOfToday);
+    endOfToday.setDate(endOfToday.getDate() + 1);
+
+    const [todayRides, activeRide, searchingCount] = await Promise.all([
+      this.prisma.ride.findMany({
+        where: {
+          captainId: captain.id,
+          status: RideStatus.COMPLETED,
+          completedAt: { gte: startOfToday, lt: endOfToday },
+        },
+        select: { finalFare: true, estimatedFare: true },
+      }),
+      this.prisma.ride.findFirst({
+        where: {
+          captainId: captain.id,
+          status: {
+            in: [
+              RideStatus.ACCEPTED,
+              RideStatus.ARRIVING,
+              RideStatus.IN_PROGRESS,
+            ],
+          },
+        },
+        select: { id: true, status: true },
+      }),
+      this.prisma.ride.count({
+        where: {
+          status: RideStatus.SEARCHING,
+          vehicleType: captain.vehicle?.vehicleType,
+        },
+      }),
+    ]);
+
+    const todayEarnings = todayRides.reduce(
+      (sum, r) => sum + (r.finalFare ?? r.estimatedFare ?? 0),
+      0,
+    );
+
+    return {
+      captain: {
+        name: captain.user.fullName,
+        isOnline: captain.isOnline,
+        rating: captain.rating,
+        totalTrips: captain.totalTrips,
+        vehicleType: captain.vehicle?.vehicleType ?? null,
+        plateNumber: captain.vehicle?.vehicleNumber ?? null,
+      },
+      today: {
+        trips: todayRides.length,
+        earnings: todayEarnings,
+      },
+      activeRide: activeRide
+        ? { rideId: activeRide.id, status: activeRide.status }
+        : null,
+      nearbyRequests: searchingCount,
+    };
+  }
 
   async getEarnings(userId: string) {
     const captain = await this.prisma.captain.findUnique({
@@ -106,49 +183,16 @@ export class CaptainService {
     };
   }
 
-  async getDocuments(captainId: string) {
-    const document = await this.prisma.captainDocument.findUnique({
-      where: { captainId },
-      select: {
-        documentStatus: true,
-        aadhaarFrontImage: true,
-        drivingLicenseImage: true,
-        rcImage: true,
-        selfieImage: true,
-      },
-    });
+  async getDocuments(userId: string) {
+    return this.verificationService.getDocumentsForCaptain(userId);
+  }
 
-    // Map the single status to lowercase for the frontend
-    const toStatus = (
-      hasFile: boolean,
-      overallStatus: DocumentStatus,
-    ): 'verified' | 'pending' | 'rejected' => {
-      if (!hasFile) return 'pending';
-      if (overallStatus === DocumentStatus.APPROVED) return 'verified';
-      if (overallStatus === DocumentStatus.REJECTED) return 'rejected';
-      return 'pending';
-    };
-
-    const status = document?.documentStatus ?? DocumentStatus.PENDING;
-
-    return [
-      {
-        name: 'Driving license',
-        status: toStatus(!!document?.drivingLicenseImage, status),
-      },
-      {
-        name: 'RC / Registration',
-        status: toStatus(!!document?.rcImage, status),
-      },
-      {
-        name: 'Aadhaar',
-        status: toStatus(!!document?.aadhaarFrontImage, status),
-      },
-      {
-        name: 'Selfie verification',
-        status: toStatus(!!document?.selfieImage, status),
-      },
-    ];
+  async uploadDocument(
+    userId: string,
+    documentType: string,
+    file: Express.Multer.File,
+  ) {
+    return this.verificationService.uploadDocument(userId, documentType, file);
   }
 
   async updateProfilePhoto(
@@ -194,6 +238,11 @@ export class CaptainService {
         rating: true,
         totalTrips: true,
         verifiedAt: true,
+        emergencyContactName: true,
+        emergencyContactPhone: true,
+        safetyAlertEnabled: true,
+        notifyRequestAlerts: true,
+        shareLiveLocation: true,
         user: {
           select: {
             fullName: true,
@@ -233,7 +282,43 @@ export class CaptainService {
       plateNumber: captain.vehicle?.vehicleNumber ?? '—',
       vehicleType: captain.vehicle?.vehicleType ?? null,
       vehicleColor: captain.vehicle?.color ?? null,
+      emergencyContactName: captain.emergencyContactName,
+      emergencyContactPhone: captain.emergencyContactPhone,
+      safetyAlertEnabled: captain.safetyAlertEnabled,
+      notifyRequestAlerts: captain.notifyRequestAlerts,
+      shareLiveLocation: captain.shareLiveLocation,
     };
+  }
+
+  async setOnlineStatus(userId: string, isOnline: boolean) {
+    const captain = await this.prisma.captain.findUnique({
+      where: { userId },
+      include: { vehicle: true },
+    });
+
+    if (!captain) throw new NotFoundException('Captain profile not found');
+
+    if (isOnline) {
+      await this.verificationService.assertCanGoOnline(userId);
+    }
+
+    await this.prisma.captain.update({
+      where: { id: captain.id },
+      data: { isOnline },
+    });
+
+    if (captain.vehicle) {
+      await this.rideRedis.setCaptainOnline(
+        captain.id,
+        userId,
+        captain.currentLatitude,
+        captain.currentLongitude,
+        captain.vehicle.vehicleType,
+        isOnline,
+      );
+    }
+
+    return { isOnline };
   }
 
   async updateProfile(userId: string, dto: UpdateCaptainProfileDto) {
@@ -248,7 +333,6 @@ export class CaptainService {
     const resolvedFullName = fullName ?? name;
 
     await this.prisma.$transaction([
-      // update fullName on User if provided
       ...(resolvedFullName
         ? [
             this.prisma.user.update({
@@ -257,7 +341,6 @@ export class CaptainService {
             }),
           ]
         : []),
-      // update captain fields
       this.prisma.captain.update({
         where: { id: captain.id },
         data: {
@@ -270,6 +353,33 @@ export class CaptainService {
     ]);
 
     return this.getProfile(userId);
+  }
+
+  async createSupportInquiry(
+    userId: string,
+    dto: { subject: string; description: string; category?: string },
+  ) {
+    const captain = await this.prisma.captain.findUnique({
+      where: { userId },
+      select: { id: true, user: { select: { fullName: true, phoneNumber: true } } },
+    });
+    if (!captain) throw new NotFoundException('Captain profile not found');
+
+    return this.prisma.auditLog.create({
+      data: {
+        performedBy: userId,
+        action: AuditAction.INCIDENT_CREATED,
+        channel: 'CAPTAIN_SUPPORT',
+        metadata: {
+          captainId: captain.id,
+          captainName: captain.user.fullName,
+          phone: captain.user.phoneNumber,
+          subject: dto.subject,
+          description: dto.description,
+          category: dto.category ?? 'OTHER',
+        },
+      },
+    });
   }
 
   private getWeeklyMap(

@@ -1,7 +1,7 @@
 import { ShieldAlert } from "lucide-react";
 
-import CaptainActionButton from "@/components/captain/shared/captain-action-button";
 import CaptainCard from "@/components/captain/shared/captain-card";
+import SosTriggerButton from "@/components/shared/safety/sos-trigger-button";
 import { captainHeading } from "@/lib/captain/captain-styles";
 
 export default function EmergencySosCard({ compact }: { compact?: boolean }) {
@@ -20,13 +20,7 @@ export default function EmergencySosCard({ compact }: { compact?: boolean }) {
           </p>
         </div>
       </div>
-      <CaptainActionButton
-        variant="destructive"
-        fullWidth
-        className="mt-4"
-      >
-        Trigger SOS
-      </CaptainActionButton>
+      <SosTriggerButton className="mt-4" />
     </CaptainCard>
   );
 }

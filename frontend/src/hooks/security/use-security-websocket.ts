@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { SecurityActivity } from "@/lib/security/types";
-import { securityActivity } from "@/lib/security/mock-data";
 import { SECURITY_WS_URL } from "@/services/security/security-api";
 
 type UseSecurityWebSocketOptions = {
@@ -13,9 +12,9 @@ type UseSecurityWebSocketOptions = {
 export function useSecurityWebSocket(
   options: UseSecurityWebSocketOptions = {},
 ) {
-  const { simulateLive = true } = options;
+  const { simulateLive = false } = options;
   const [connected, setConnected] = useState(false);
-  const [events, setEvents] = useState<SecurityActivity[]>(securityActivity);
+  const [events, setEvents] = useState<SecurityActivity[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
 
   const pushEvent = useCallback((event: SecurityActivity) => {
@@ -40,7 +39,7 @@ export function useSecurityWebSocket(
           const data = JSON.parse(msg.data as string) as SecurityActivity;
           if (!cancelled) pushEvent(data);
         } catch {
-          /* ignore */
+          /* ignore malformed payloads */
         }
       };
 
@@ -58,21 +57,6 @@ export function useSecurityWebSocket(
       wsRef.current?.close();
     };
   }, [pushEvent]);
-
-  useEffect(() => {
-    if (!simulateLive) return;
-    const pollId = setInterval(() => {
-      if (!connected) {
-        pushEvent({
-          id: `live-${Date.now()}`,
-          message: "Monitoring heartbeat — all systems nominal",
-          time: "Just now",
-          type: "audit",
-        });
-      }
-    }, 45000);
-    return () => clearInterval(pollId);
-  }, [connected, pushEvent, simulateLive]);
 
   return { connected, events, live: connected || simulateLive };
 }

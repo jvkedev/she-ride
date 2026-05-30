@@ -6,7 +6,7 @@ import { Bell, Menu, User } from "lucide-react";
 
 import DashboardLogoutButton from "@/components/shared/dashboard/logout-button";
 import { securityNavLinks } from "@/lib/security/nav-links";
-import { securityOverviewStats, securityProfile } from "@/lib/security/mock-data";
+import { useSecurityProfile } from "@/hooks/security/use-security-profile";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -15,10 +15,11 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { cn } from "@/lib/utils";
 
 export default function SecurityHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { data: profile } = useSecurityProfile();
+  const displayName = profile?.name ?? "Security";
 
   return (
     <header className="sticky top-0 z-30 shrink-0 border-b border-neutral-200 bg-white">
@@ -81,21 +82,26 @@ export default function SecurityHeader() {
             className="relative rounded-lg p-2 text-neutral-600 transition hover:bg-neutral-100"
           >
             <Bell className="size-5" />
-            <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-primary" />
           </button>
 
           <Link
-            href="/security/emergency"
-            className={cn(
-              "flex items-center gap-2 rounded-lg border border-neutral-200 px-2 py-1.5 transition hover:bg-neutral-50",
-            )}
+            href="/security/profile"
+            className="flex items-center gap-2 rounded-lg border border-neutral-200 px-2 py-1.5 transition hover:bg-neutral-50"
           >
-            <div className="flex size-8 items-center justify-center rounded-full bg-neutral-200">
-              <User className="size-4 text-neutral-600" />
-            </div>
+            {profile?.profileImage ? (
+              <img
+                src={profile.profileImage}
+                alt={displayName}
+                className="size-8 rounded-full object-cover"
+              />
+            ) : (
+              <div className="flex size-8 items-center justify-center rounded-full bg-neutral-200">
+                <User className="size-4 text-neutral-600" />
+              </div>
+            )}
             <div className="hidden min-w-0 sm:block">
               <p className="truncate text-sm font-medium text-neutral-900">
-                {securityProfile.name}
+                {displayName}
               </p>
               <p className="text-xs text-neutral-500">Security</p>
             </div>

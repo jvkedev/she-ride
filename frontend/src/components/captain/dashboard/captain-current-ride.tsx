@@ -7,7 +7,7 @@ import CaptainCard from "@/components/captain/shared/captain-card";
 import CaptainStatusBadge from "@/components/captain/shared/captain-status-badge";
 import { Button } from "@/components/ui/button";
 import { captainHeading, captainMutedText } from "@/lib/captain/captain-styles";
-import { useCaptainStore } from "@/store/captain.store";
+import { useCaptainStore, type ActiveRideMapState } from "@/store/captain.store";
 import {
   getActiveRide,
   markArrived,
@@ -16,9 +16,11 @@ import {
   cancelRideAsCaptain,
   type ActiveRideDetails,
 } from "@/services/captain/captain-rides.service";
+import { connectSocket, joinRideRoom } from "@/services/socket/socket.service";
 
 export default function CaptainCurrentRide() {
-  const { activeRideId, setActiveRideId } = useCaptainStore();
+  const { activeRideId, setActiveRideId, setActiveRide, clearActiveRide } =
+    useCaptainStore();
   const [ride, setRide] = useState<ActiveRideDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [otp, setOtp] = useState("");
@@ -31,11 +33,27 @@ export default function CaptainCurrentRide() {
       return;
     }
 
+    function syncStore(details: ActiveRideDetails) {
+      const mapState: ActiveRideMapState = {
+        rideId: details.rideId,
+        status: details.status,
+        pickupLat: details.pickupLatitude,
+        pickupLng: details.pickupLongitude,
+        dropLat: details.dropLatitude,
+        dropLng: details.dropLongitude,
+        vehicleType: details.vehicleType,
+        pickupAddress: details.pickupAddress,
+        dropAddress: details.dropAddress,
+      };
+      setActiveRide(mapState);
+    }
+
     async function fetchRide() {
       try {
         setLoading(true);
         const details = await getActiveRide(activeRideId!);
         setRide(details);
+        syncStore(details);
       } catch {
         setError("Failed to load ride details");
       } finally {
@@ -44,7 +62,41 @@ export default function CaptainCurrentRide() {
     }
 
     fetchRide();
-  }, [activeRideId]);
+    joinRideRoom(activeRideId);
+
+    const token = localStorage.getItem("accessToken") ?? "";
+    let userId: string | null = null;
+    try {
+      userId = JSON.parse(atob(token.split(".")[1])).sub;
+    } catch {
+      userId = null;
+    }
+
+    const socket = userId ? connectSocket(userId, { role: "CAPTAIN" }) : null;
+
+    const onStatus = (data: { status: string }) => {
+      setRide((r) => {
+        if (!r) return r;
+        const next = { ...r, status: data.status };
+        syncStore(next);
+        if (data.status === "COMPLETED" || data.status === "CANCELED") {
+          setTimeout(() => {
+            clearActiveRide();
+            setRide(null);
+          }, 1500);
+        }
+        return next;
+      });
+    };
+
+    socket?.on("ride:status", onStatus);
+
+    const interval = setInterval(fetchRide, 20000);
+    return () => {
+      clearInterval(interval);
+      socket?.off("ride:status", onStatus);
+    };
+  }, [activeRideId, setActiveRide, clearActiveRide]);
 
   if (!activeRideId) return null;
 
@@ -66,6 +118,19 @@ export default function CaptainCurrentRide() {
       setActionLoading(true);
       await markArrived(ride!.rideId);
       setRide((r) => (r ? { ...r, status: "ARRIVING" } : r));
+      if (ride) {
+        setActiveRide({
+          rideId: ride.rideId,
+          status: "ARRIVING",
+          pickupLat: ride.pickupLatitude,
+          pickupLng: ride.pickupLongitude,
+          dropLat: ride.dropLatitude,
+          dropLng: ride.dropLongitude,
+          vehicleType: ride.vehicleType,
+          pickupAddress: ride.pickupAddress,
+          dropAddress: ride.dropAddress,
+        });
+      }
     } catch {
       setError("Failed to mark arrived");
     } finally {
@@ -82,7 +147,22 @@ export default function CaptainCurrentRide() {
       setActionLoading(true);
       setError("");
       await startRide(ride!.rideId, otp);
-      setRide((r) => (r ? { ...r, status: "IN_PROGRESS" } : r));
+      setRide((r) => {
+        if (!r) return r;
+        const next = { ...r, status: "IN_PROGRESS" };
+        setActiveRide({
+          rideId: next.rideId,
+          status: "IN_PROGRESS",
+          pickupLat: next.pickupLatitude,
+          pickupLng: next.pickupLongitude,
+          dropLat: next.dropLatitude,
+          dropLng: next.dropLongitude,
+          vehicleType: next.vehicleType,
+          pickupAddress: next.pickupAddress,
+          dropAddress: next.dropAddress,
+        });
+        return next;
+      });
       setOtp("");
     } catch {
       setError("Invalid OTP. Please try again.");
@@ -98,7 +178,7 @@ export default function CaptainCurrentRide() {
       await completeRide(ride!.rideId);
       setRide((r) => (r ? { ...r, status: "COMPLETED" } : r));
       setTimeout(() => {
-        setActiveRideId(null);
+        clearActiveRide();
         setRide(null);
       }, 2000);
     } catch {
@@ -113,7 +193,7 @@ export default function CaptainCurrentRide() {
     try {
       setActionLoading(true);
       await cancelRideAsCaptain(ride!.rideId, "Cancelled by captain");
-      setActiveRideId(null);
+      clearActiveRide();
       setRide(null);
     } catch {
       setError("Failed to cancel ride");

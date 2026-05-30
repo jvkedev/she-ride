@@ -1,37 +1,40 @@
-// src/modules/rider/payments/payment.service.ts
-
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { PaymentMethod } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 @Injectable()
 export class PaymentService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // GET default payment method for rider
   async getDefaultMethod(userId: string) {
     const rider = await this.prisma.rider.findUnique({
       where: { userId },
-      select: { ridePreference: true }, // reuse existing field or add defaultPaymentMethod
+      select: { defaultPaymentMethod: true },
     });
     if (!rider) throw new NotFoundException('Rider not found');
 
-    // TODO: once you add defaultPaymentMethod to Rider model, return it here
-    // For now return CASH as default
-    return { method: 'CASH' };
+    return { method: rider.defaultPaymentMethod };
   }
 
-  // PATCH default payment method
-  async setDefaultMethod(userId: string, method: 'CASH' | 'UPI') {
+  async setDefaultMethod(userId: string, method: 'CASH' | 'UPI' | 'CARD') {
     const rider = await this.prisma.rider.findUnique({ where: { userId } });
     if (!rider) throw new NotFoundException('Rider not found');
 
-    // TODO: once you add defaultPaymentMethod to Rider model, save it here
-    // await this.prisma.rider.update({ where: { userId }, data: { defaultPaymentMethod: method } });
+    const mapped =
+      method === 'UPI'
+        ? PaymentMethod.UPI
+        : method === 'CARD'
+          ? PaymentMethod.CARD
+          : PaymentMethod.CASH;
 
-    return { method };
+    await this.prisma.rider.update({
+      where: { userId },
+      data: { defaultPaymentMethod: mapped },
+    });
+
+    return { method: mapped };
   }
 
-  // GET last completed ride receipt
   async getLastRideReceipt(userId: string) {
     const rider = await this.prisma.rider.findUnique({ where: { userId } });
     if (!rider) throw new NotFoundException('Rider not found');
@@ -48,6 +51,7 @@ export class PaymentService {
         paymentMethod: true,
         paymentStatus: true,
         completedAt: true,
+        distanceInKm: true,
       },
     });
 
@@ -58,13 +62,14 @@ export class PaymentService {
       pickupAddress: ride.pickupAddress,
       dropAddress: ride.dropAddress,
       fare: ride.finalFare ?? ride.estimatedFare ?? 0,
+      distanceInKm: ride.distanceInKm,
       method: ride.paymentMethod,
       status: ride.paymentStatus === 'PAID' ? 'PAID' : 'PENDING',
       completedAt: ride.completedAt,
     };
   }
 
-  async getPaymentHistory(userId: string, limit = 10) {
+  async getPaymentHistory(userId: string, page = 1, limit = 10) {
     const rider = await this.prisma.rider.findUnique({
       where: { userId },
       select: { id: true },
@@ -72,34 +77,50 @@ export class PaymentService {
 
     if (!rider) throw new NotFoundException('Rider not found');
 
-    const rides = await this.prisma.ride.findMany({
-      where: {
-        riderId: rider.id,
-        completedAt: { not: null },
-      },
-      orderBy: { completedAt: 'desc' },
-      take: limit,
-      select: {
-        id: true,
-        pickupAddress: true,
-        dropAddress: true,
-        estimatedFare: true,
-        finalFare: true,
-        paymentMethod: true,
-        paymentStatus: true,
-        completedAt: true,
-      },
-    });
+    const skip = (page - 1) * limit;
 
-    return rides.map((ride) => ({
-      id: ride.id,
-      route: `${ride.pickupAddress} -> ${ride.dropAddress}`,
-      pickupAddress: ride.pickupAddress,
-      dropAddress: ride.dropAddress,
-      fare: ride.finalFare ?? ride.estimatedFare ?? 0,
-      method: ride.paymentMethod,
-      status: ride.paymentStatus,
-      completedAt: ride.completedAt,
-    }));
+    const [rides, total] = await Promise.all([
+      this.prisma.ride.findMany({
+        where: {
+          riderId: rider.id,
+          status: 'COMPLETED',
+        },
+        orderBy: { completedAt: 'desc' },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          pickupAddress: true,
+          dropAddress: true,
+          estimatedFare: true,
+          finalFare: true,
+          paymentMethod: true,
+          paymentStatus: true,
+          completedAt: true,
+        },
+      }),
+      this.prisma.ride.count({
+        where: { riderId: rider.id, status: 'COMPLETED' },
+      }),
+    ]);
+
+    return {
+      data: rides.map((ride) => ({
+        id: ride.id,
+        route: `${ride.pickupAddress} → ${ride.dropAddress}`,
+        pickupAddress: ride.pickupAddress,
+        dropAddress: ride.dropAddress,
+        fare: ride.finalFare ?? ride.estimatedFare ?? 0,
+        method: ride.paymentMethod,
+        status: ride.paymentStatus === 'PAID' ? 'PAID' : 'PENDING',
+        completedAt: ride.completedAt,
+      })),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 }

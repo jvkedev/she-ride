@@ -51,6 +51,12 @@ export class AccountSecurityController {
     });
   }
 
+  @Get('assignees')
+  @Roles('SECURITY', 'ADMIN')
+  getAssignees() {
+    return this.accountService.getAssignees();
+  }
+
   @Get(':id')
   @Roles('SECURITY', 'ADMIN')
   getById(@Param('id') id: string) {
@@ -65,12 +71,6 @@ export class AccountSecurityController {
     @Body() body: { notes?: string },
   ) {
     return this.accountService.resolveFlag(id, req.user.id, body.notes);
-  }
-
-  @Get('assignees')
-  @Roles('SECURITY', 'ADMIN')
-  getAssignees() {
-    return this.accountService.getAssignees();
   }
 
   @Patch('user/:userId/block')

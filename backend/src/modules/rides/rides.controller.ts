@@ -10,18 +10,22 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RidesService } from './rides.service';
+import { RouteService } from './route.service';
 import { CreateRideDto } from './dto/create-ride.dto';
 import { EstimateRideDto } from './dto/estimate-ride.dto';
 import { Query } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { JwtUser } from '../../common/types/jwt-user.type';
 import type { HistoryQueryDto } from './dto/history-ride.dto';
-import { Throttle } from '@nestjs/throttler';
+import { Throttle, SkipThrottle } from '@nestjs/throttler';
 
 @Controller('rides')
 @UseGuards(JwtAuthGuard)
 export class RidesController {
-  constructor(private readonly ridesService: RidesService) {}
+  constructor(
+    private readonly ridesService: RidesService,
+    private readonly routeService: RouteService,
+  ) {}
 
   // POST routes
   @Post('estimate')
@@ -32,6 +36,11 @@ export class RidesController {
   @Post('request')
   async requestRide(@Body() dto: CreateRideDto, @Request() req) {
     return this.ridesService.requestRide(dto, req.user.id);
+  }
+
+  @Get(':id/rider-details')
+  async getRiderRideDetails(@Param('id') rideId: string, @Request() req) {
+    return this.ridesService.getRiderRideDetails(rideId, req.user.id);
   }
 
   @Get(':id/details')
@@ -49,7 +58,34 @@ export class RidesController {
   }
 
   // GET static routes
+  @Get('route')
+  async getRoute(
+    @Query('fromLat') fromLat: string,
+    @Query('fromLng') fromLng: string,
+    @Query('toLat') toLat: string,
+    @Query('toLng') toLng: string,
+  ) {
+    return this.routeService.getDrivingRoute(
+      parseFloat(fromLat),
+      parseFloat(fromLng),
+      parseFloat(toLat),
+      parseFloat(toLng),
+    );
+  }
+
+  @Get('captain/active')
+  @SkipThrottle()
+  async getCaptainActiveRide(@Request() req) {
+    return this.ridesService.getCaptainActiveRide(req.user.id);
+  }
+
+  @Get('active')
+  async getRiderActiveRide(@Request() req) {
+    return this.ridesService.getRiderActiveRide(req.user.id);
+  }
+
   @Get('searching')
+  @SkipThrottle()
   async getSearchingRides(@Request() req) {
     return this.ridesService.getSearchingRides(req.user.id);
   }

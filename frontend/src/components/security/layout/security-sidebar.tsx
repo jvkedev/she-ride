@@ -5,11 +5,13 @@ import { usePathname } from "next/navigation";
 
 import DashboardLogoutButton from "@/components/shared/dashboard/logout-button";
 import { securityNavLinks } from "@/lib/security/nav-links";
-import { securityProfile } from "@/lib/security/mock-data";
+import { useSecurityProfile } from "@/hooks/security/use-security-profile";
 import { cn } from "@/lib/utils";
 
 export default function SecuritySidebar() {
   const pathname = usePathname();
+  const { data: profile } = useSecurityProfile();
+  const displayName = profile?.name ?? "Security";
 
   return (
     <aside className="hidden h-full w-60 shrink-0 flex-col border-r border-neutral-200 bg-white lg:flex">
@@ -50,17 +52,35 @@ export default function SecuritySidebar() {
       </nav>
 
       <div className="shrink-0 border-t border-neutral-100 p-4">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-full bg-neutral-200 text-sm font-semibold text-neutral-700">
-            {securityProfile.name.charAt(0)}
+        <Link
+          href="/security/profile"
+          prefetch
+          className="group block rounded-2xl bg-neutral-50 p-3 transition hover:bg-neutral-100"
+        >
+          <div className="flex items-center gap-3">
+            <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-neutral-200 text-sm font-semibold text-neutral-700">
+              {profile?.profileImage ? (
+                <img
+                  src={profile.profileImage}
+                  alt={displayName}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span>{displayName.charAt(0)}</span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-neutral-900">
+                {displayName}
+              </p>
+              <p className="text-xs text-neutral-500">
+                {profile?.memberSince
+                  ? `Security · since ${new Date(profile.memberSince).getFullYear()}`
+                  : "Security staff"}
+              </p>
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-neutral-900">
-              {securityProfile.name}
-            </p>
-            <p className="text-xs text-neutral-500">{securityProfile.role}</p>
-          </div>
-        </div>
+        </Link>
         <DashboardLogoutButton className="mt-3" />
       </div>
     </aside>

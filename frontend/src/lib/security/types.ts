@@ -96,6 +96,14 @@ export interface FraudCase {
   createdAt: string;
 }
 
+export interface IncidentNote {
+  id: string;
+  content: string;
+  isInternal: boolean;
+  createdAt: string;
+  author: { id: string; fullName: string; role: string };
+}
+
 export interface SecurityIncident {
   id: string;
   incidentNumber: string;
@@ -119,8 +127,25 @@ export interface SecurityIncident {
   resolvedAt?: string;
   closedAt?: string;
   createdAt: string;
-  user: { id: string; fullName: string; phoneNumber: string; role: string };
-  ride?: { id: string; pickupAddress: string; dropAddress: string };
+  user: {
+    id: string;
+    fullName: string;
+    phoneNumber: string;
+    role: string;
+    captain?: { id: string } | null;
+    rider?: { id: string } | null;
+  };
+  ride?: {
+    id: string;
+    pickupAddress: string;
+    dropAddress: string;
+    status: string;
+    captainId?: string;
+    riderId?: string;
+    captain?: { id: string; user: { fullName: string } };
+    rider?: { id: string; user: { fullName: string } };
+  };
+  notes?: IncidentNote[];
   // from your existing component
   title?: string;
   category?: string;

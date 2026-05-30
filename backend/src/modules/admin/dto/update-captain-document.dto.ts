@@ -5,9 +5,17 @@ export class UpdateCaptainDocumentDto {
   @IsEnum(DocumentStatus)
   status!: DocumentStatus;
 
-  @IsOptional()
-  @IsIn(['driving_license', 'rc_registration', 'aadhaar', 'selfie'])
-  documentKey?: 'driving_license' | 'rc_registration' | 'aadhaar' | 'selfie';
+  @IsIn([
+    'driving_license',
+    'vehicle_rc',
+    'vehicle_insurance',
+    'government_id',
+  ])
+  documentKey!:
+    | 'driving_license'
+    | 'vehicle_rc'
+    | 'vehicle_insurance'
+    | 'government_id';
 
   @IsOptional()
   @IsString()

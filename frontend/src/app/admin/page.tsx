@@ -8,10 +8,8 @@ export default function AdminDashboardPage() {
   return (
     <DashboardPageLayout title="Dashboard" wide>
       <OverviewStats />
-      <div className="grid gap-4 lg:grid-cols-2">
-        <RevenueChart />
-        <RidesChart />
-      </div>
+      <RevenueChart />
+      <RidesChart />
       <RecentActivityFeed />
     </DashboardPageLayout>
   );

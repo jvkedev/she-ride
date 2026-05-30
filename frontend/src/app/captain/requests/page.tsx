@@ -1,11 +1,10 @@
 import CaptainPageLayout from "@/components/captain/layout/captain-page-layout";
 import RequestList from "@/components/captain/requests/request-list";
-import { incomingRequests } from "@/lib/captain/captain-mock-data";
 
 export default function CaptainRequestsPage() {
   return (
     <CaptainPageLayout title="Ride requests" wide>
-      <RequestList requests={incomingRequests} showTimer />
+      <RequestList showTimer />
     </CaptainPageLayout>
   );
 }

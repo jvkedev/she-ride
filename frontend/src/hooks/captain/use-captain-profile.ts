@@ -1,47 +1,30 @@
-"use client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { useEffect, useState } from "react";
-import axiosClient from "@/services/api/axios-client";
+import {
+  getCaptainProfile,
+  type CaptainProfile,
+} from "@/services/captain/captain-profile.service";
 
-export interface CaptainProfile {
-  name: string;
-  email: string;
-  phoneNumber: string;
-  profileImage: string | null;
-  gender: string | null;
-  dateOfBirth: string | null;
-  isVerified: boolean;
-  isOnline: boolean;
-  rating: number;
-  totalTrips: number;
-  verifiedAt: string | null;
-  vehicle: string;
-  plateNumber: string;
-  vehicleType: string | null;
-  vehicleColor: string | null;
-}
+export const CAPTAIN_PROFILE_QUERY_KEY = ["captain", "profile"] as const;
 
 export function useCaptainProfile() {
-  const [profile, setProfile] = useState<CaptainProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  return useQuery({
+    queryKey: CAPTAIN_PROFILE_QUERY_KEY,
+    queryFn: getCaptainProfile,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+    retry: 1,
+  });
+}
 
-  useEffect(() => {
-    async function fetchProfile() {
-      try {
-        const res = await axiosClient.get<CaptainProfile>("/captain/profile");
-        setProfile(res.data);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to fetch profile",
-        );
-      } finally {
-        setLoading(false);
-      }
-    }
+export function useInvalidateCaptainProfile() {
+  const queryClient = useQueryClient();
+  return () =>
+    queryClient.invalidateQueries({ queryKey: CAPTAIN_PROFILE_QUERY_KEY });
+}
 
-    void fetchProfile();
-  }, []);
-
-  return { profile, loading, error };
+export function useSetCaptainProfileCache() {
+  const queryClient = useQueryClient();
+  return (profile: CaptainProfile) =>
+    queryClient.setQueryData(CAPTAIN_PROFILE_QUERY_KEY, profile);
 }

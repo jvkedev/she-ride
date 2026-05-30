@@ -18,7 +18,7 @@ export interface EstimateRidePayload {
 
 export interface RequestRidePayload extends EstimateRidePayload {
   vehicleType: "CAR" | "AUTO" | "BIKE" | "SUV";
-  paymentMethod?: "CASH" | "ONLINE";
+  paymentMethod?: "CASH" | "UPI" | "CARD";
 }
 
 export interface RequestRideResponse {
@@ -115,4 +115,81 @@ export async function cancelRide(
     body: JSON.stringify({ reason }),
   });
   if (!res.ok) throw new Error("Failed to cancel ride");
+}
+
+export interface RiderActiveRide {
+  rideId: string;
+  status: string;
+  pickupAddress: string;
+  dropAddress: string;
+  pickupLatitude: number;
+  pickupLongitude: number;
+  dropLatitude: number;
+  dropLongitude: number;
+  estimatedFare: number | null;
+  distanceInKm: number | null;
+  vehicleType: string;
+  paymentMethod: string;
+  captain: {
+    name: string;
+    phone: string;
+    rating: number;
+    lat: number | null;
+    lng: number | null;
+    vehicle: {
+      brand: string;
+      model: string;
+      color: string;
+      plate: string;
+      type: string;
+    } | null;
+  } | null;
+}
+
+export async function getRiderActiveRide(): Promise<RiderActiveRide | null> {
+  const res = await apiFetch("/rides/active");
+  if (!res.ok) throw new Error("Failed to fetch active ride");
+  const data = await res.json();
+  return data ?? null;
+}
+
+export interface RiderRideDetails {
+  id: string;
+  status: string;
+  pickupAddress: string;
+  dropAddress: string;
+  pickupLatitude: number;
+  pickupLongitude: number;
+  dropLatitude: number;
+  dropLongitude: number;
+  distanceInKm: number;
+  estimatedFare: number;
+  finalFare: number | null;
+  vehicleType: string;
+  paymentMethod: string;
+  paymentStatus: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  captain: {
+    name: string;
+    phone: string;
+    rating: number;
+    vehicle: {
+      brand: string;
+      model: string;
+      color: string;
+      plate: string;
+      type: string;
+    } | null;
+  } | null;
+}
+
+export async function getRiderRideDetails(
+  rideId: string,
+): Promise<RiderRideDetails> {
+  const res = await apiFetch(`/rides/${rideId}/rider-details`);
+  if (!res.ok) throw new Error("Failed to fetch ride details");
+  return res.json();
 }

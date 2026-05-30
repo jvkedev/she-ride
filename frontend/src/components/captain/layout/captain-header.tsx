@@ -8,6 +8,7 @@ import CaptainOnlineToggle from "@/components/captain/dashboard/captain-online-t
 import DashboardLogoutButton from "@/components/shared/dashboard/logout-button";
 import { captainNavLinks } from "@/components/captain/layout/captain-nav-links";
 import CaptainStatusBadge from "@/components/captain/shared/captain-status-badge";
+import { useCaptainProfile } from "@/hooks/captain/use-captain-profile";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -16,22 +17,21 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import {
-  captainProfile,
-  todayEarningsSummary,
-} from "@/lib/captain/captain-mock-data";
 import { cn } from "@/lib/utils";
 
 type CaptainHeaderProps = {
   isOnline: boolean;
   onOnlineChange: (online: boolean) => void;
+  canGoOnline?: boolean;
 };
 
 export default function CaptainHeader({
   isOnline,
   onOnlineChange,
+  canGoOnline = true,
 }: CaptainHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { data: profile } = useCaptainProfile();
 
   return (
     <header className="sticky top-0 z-30 border-b border-neutral-200 bg-white">
@@ -91,6 +91,7 @@ export default function CaptainHeader({
             <CaptainOnlineToggle
               isOnline={isOnline}
               onToggle={onOnlineChange}
+              disabled={!canGoOnline && !isOnline}
             />
             <CaptainStatusBadge status={isOnline ? "online" : "offline"} />
           </div>
@@ -101,6 +102,7 @@ export default function CaptainHeader({
             <CaptainOnlineToggle
               isOnline={isOnline}
               onToggle={onOnlineChange}
+              disabled={!canGoOnline && !isOnline}
             />
           </div>
 
@@ -110,7 +112,6 @@ export default function CaptainHeader({
             className="relative rounded-lg p-2 text-neutral-600 transition hover:bg-neutral-100"
           >
             <Bell className="size-5" />
-            <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-primary" />
           </button>
 
           <Link
@@ -124,7 +125,7 @@ export default function CaptainHeader({
             </div>
             <div className="hidden min-w-0 sm:block">
               <p className="truncate text-sm font-medium text-neutral-900">
-                {captainProfile.name}
+                {profile?.name ?? "Captain"}
               </p>
               <p className="text-xs text-neutral-500">Captain</p>
             </div>

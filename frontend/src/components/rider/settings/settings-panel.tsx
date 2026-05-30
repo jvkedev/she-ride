@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,7 +13,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { clearAuthSession } from "@/lib/auth/logout";
-import { getRiderProfile } from "@/services/profile/profile.service";
+import {
+  getRiderProfile,
+  updateRiderProfile,
+} from "@/services/profile/profile.service";
 
 export default function SettingsPanel() {
   const router = useRouter();
@@ -21,6 +25,7 @@ export default function SettingsPanel() {
   const [rideUpdates, setRideUpdates] = useState(true);
   const [safetyAlerts, setSafetyAlerts] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     getRiderProfile()
@@ -31,6 +36,8 @@ export default function SettingsPanel() {
         if (profile.emergencyContactPhone) {
           setContactPhone(profile.emergencyContactPhone);
         }
+        setRideUpdates(profile.notifyRideUpdates ?? true);
+        setSafetyAlerts(profile.safetyAlertEnabled ?? true);
       })
       .catch(() => {
         setContactName("Not set");
@@ -39,13 +46,22 @@ export default function SettingsPanel() {
       .finally(() => setLoading(false));
   }, []);
 
+  async function persistPrefs(
+    next: Partial<{ notifyRideUpdates: boolean; safetyAlertEnabled: boolean }>,
+  ) {
+    setSaving(true);
+    try {
+      await updateRiderProfile(next);
+    } catch {
+      /* revert on error handled by caller if needed */
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function handleLogout() {
     clearAuthSession();
     router.push("/login");
-  }
-
-  function handleUpdateContact() {
-    router.push("/rider/profile");
   }
 
   return (
@@ -81,7 +97,7 @@ export default function SettingsPanel() {
               type="button"
               variant="outline"
               size="sm"
-              onClick={handleUpdateContact}
+              onClick={() => router.push("/rider/profile")}
             >
               Update
             </Button>
@@ -109,7 +125,12 @@ export default function SettingsPanel() {
             <button
               type="button"
               aria-pressed={rideUpdates}
-              onClick={() => setRideUpdates((current) => !current)}
+              disabled={saving}
+              onClick={() => {
+                const next = !rideUpdates;
+                setRideUpdates(next);
+                void persistPrefs({ notifyRideUpdates: next });
+              }}
               className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${
                 rideUpdates ? "bg-primary" : "bg-neutral-200"
               }`}
@@ -133,7 +154,12 @@ export default function SettingsPanel() {
             <button
               type="button"
               aria-pressed={safetyAlerts}
-              onClick={() => setSafetyAlerts((current) => !current)}
+              disabled={saving}
+              onClick={() => {
+                const next = !safetyAlerts;
+                setSafetyAlerts(next);
+                void persistPrefs({ safetyAlertEnabled: next });
+              }}
               className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${
                 safetyAlerts ? "bg-primary" : "bg-neutral-200"
               }`}
@@ -145,6 +171,12 @@ export default function SettingsPanel() {
               />
             </button>
           </div>
+          {saving && (
+            <p className="flex items-center gap-2 text-xs text-neutral-400">
+              <Loader2 className="size-3 animate-spin" />
+              Saving...
+            </p>
+          )}
         </CardContent>
       </Card>
 

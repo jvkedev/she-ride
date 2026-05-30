@@ -33,6 +33,10 @@ import {
 } from './dto/login.dto';
 
 import { selectRoleSchema, type SelectRoleDto } from './dto/select-role.dto';
+import {
+  changePasswordSchema,
+  type ChangePasswordDto,
+} from './dto/change-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -96,5 +100,14 @@ export class AuthController {
     @Body(new ZodValidationPipe(selectRoleSchema)) dto: SelectRoleDto,
   ) {
     return this.authService.selectRole(user.id, dto);
+  }
+
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  changePassword(
+    @CurrentUser() user: JwtUser,
+    @Body(new ZodValidationPipe(changePasswordSchema)) dto: ChangePasswordDto,
+  ) {
+    return this.authService.changePassword(user.id, dto);
   }
 }

@@ -17,8 +17,6 @@ import { useCaptainStore } from "@/store/captain.store";
 export default function CaptainDashboardLayout() {
   const { activeRideId, setActiveRideId } = useCaptainStore();
 
-  console.log("activeRideId in dashboard:", activeRideId);
-
   return (
     <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)] overflow-hidden lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)]">
       <div
@@ -47,7 +45,7 @@ export default function CaptainDashboardLayout() {
             rideId={activeRideId ?? undefined}
             overlay={
               <div className="pointer-events-auto ml-auto w-fit rounded-lg border border-neutral-200 bg-white/95 px-3 py-2 text-xs font-medium text-neutral-700 shadow-sm backdrop-blur-sm">
-                Live location · Delhi NCR
+                Live GPS tracking
               </div>
             }
           />

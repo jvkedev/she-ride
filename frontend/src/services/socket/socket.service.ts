@@ -1,95 +1,244 @@
 import { io, Socket } from "socket.io-client";
 
+import { getAccessToken } from "@/lib/auth/session";
+
+import {
+
+  getRouteWithMeta,
+
+  type RouteResult,
+
+} from "@/services/routing/routing.service";
+
+
+
 let socket: Socket | null = null;
+
 let registeredUserId: string | null = null;
+
+let registeredMeta: { role?: string; vehicleType?: string } = {};
+
 let connectListenerInitialized = false;
 
-export function getSocket(): Socket {
-  if (!socket) {
-    socket = io(process.env.NEXT_PUBLIC_API_URL!, {
-      autoConnect: false,
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      transports: ["websocket"], // ← skip polling, go straight to websocket
-    });
-  }
-  return socket;
+
+
+function socketAuth() {
+
+  const token = getAccessToken();
+
+  return token ? { token } : {};
+
 }
 
-export function connectSocket(userId: string): Socket {
+
+
+export function getSocket(): Socket {
+
+  if (!socket) {
+
+    socket = io(process.env.NEXT_PUBLIC_API_URL!, {
+
+      autoConnect: false,
+
+      reconnection: true,
+
+      reconnectionAttempts: 10,
+
+      reconnectionDelay: 1000,
+
+      transports: ["websocket"],
+
+      auth: socketAuth,
+
+    });
+
+  }
+
+  return socket;
+
+}
+
+
+
+function emitRegister(s: Socket) {
+
+  if (!registeredUserId) return;
+
+  s.emit("register", {
+
+    userId: registeredUserId,
+
+    role: registeredMeta.role,
+
+    vehicleType: registeredMeta.vehicleType,
+
+  });
+
+}
+
+
+
+export function connectSocket(
+
+  userId: string,
+
+  options?: { role?: string; vehicleType?: string },
+
+): Socket {
+
   const s = getSocket();
+
+
 
   registeredUserId = userId;
 
+  registeredMeta = options ?? {};
+
+
+
   if (!connectListenerInitialized) {
+
     s.on("connect", () => {
-      if (registeredUserId) {
-        s.emit("register", { userId: registeredUserId });
-      }
+
+      emitRegister(s);
+
     });
+
+    s.io.on("reconnect", () => {
+
+      emitRegister(s);
+
+    });
+
     connectListenerInitialized = true;
+
   }
+
+
+
+  s.auth = socketAuth;
+
+
 
   if (!s.connected) {
+
     s.connect();
+
+  } else {
+
+    emitRegister(s);
+
   }
 
-  if (s.connected && registeredUserId) {
-    s.emit("register", { userId: registeredUserId });
-  }
+
 
   return s;
+
 }
+
+
 
 export function disconnectSocket() {
+
   if (socket) {
+
     socket.removeAllListeners();
+
     if (socket.connected) {
+
       socket.disconnect();
+
     }
-    socket = null; // reset so next connect is fresh
+
+    socket = null;
+
   }
+
   registeredUserId = null;
+
+  registeredMeta = {};
+
   connectListenerInitialized = false;
+
 }
+
+
 
 export function joinRideRoom(rideId: string) {
+
   const s = getSocket();
+
   if (!s.connected) {
+
     s.connect();
+
   }
+
   s.emit("join:ride", { rideId });
+
 }
+
+
 
 export async function getRoute(
+
   fromLat: number,
+
   fromLng: number,
+
   toLat: number,
+
   toLng: number,
+
 ): Promise<[number, number][]> {
-  try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`;
-    const res = await fetch(url);
-    const data = await res.json();
-    if (!data.routes?.[0]) return [];
-    return data.routes[0].geometry.coordinates.map(
-      ([lng, lat]: [number, number]) => [lat, lng] as [number, number],
-    );
-  } catch {
-    return [];
-  }
+
+  const result = await getRouteWithMeta(fromLat, fromLng, toLat, toLng);
+
+  return result.coordinates;
+
 }
 
+
+
 export function sendCaptainLocation(
+
   rideId: string,
+
   userId: string,
+
   lat: number,
+
   lng: number,
+
 ) {
-  const socket = getSocket();
-  if (!socket.connected) {
-    console.warn("Socket not connected yet, queuing captain:location event");
+
+  const s = getSocket();
+
+  if (!s.connected) {
+
+    s.connect();
+
   }
-  socket.emit("captain:location", { rideId, userId, lat, lng });
+
+  s.emit("captain:location", { rideId, userId, lat, lng });
+
 }
+
+export type CaptainVerificationSocketPayload = {
+  event?: "approved" | "rejected" | "updated" | "submitted";
+  message?: string;
+  isVerified?: boolean;
+};
+
+export function subscribeCaptainVerification(
+  handler: (payload: CaptainVerificationSocketPayload) => void,
+) {
+  const s = getSocket();
+  const listener = (payload: CaptainVerificationSocketPayload) => handler(payload);
+  s.on("captain:verification", listener);
+  return () => {
+    s.off("captain:verification", listener);
+  };
+}
+
+

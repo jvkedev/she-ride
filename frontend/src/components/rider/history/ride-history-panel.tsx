@@ -6,6 +6,8 @@ import {
   getRiderHistory,
   RideHistoryItem,
 } from "@/services/rides/rides.service";
+import RideDetailDialog from "@/components/rider/history/ride-detail-dialog";
+import ReportCaptainModal from "@/components/rider/shared/report-captain-modal";
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "—";
@@ -44,10 +46,13 @@ export default function RideHistoryPanel() {
   const [meta, setMeta] = useState({ page: 1, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   async function loadHistory(page = 1) {
     try {
       setLoading(true);
+      setError("");
       const result = await getRiderHistory(page, 10);
       setRides(result.data);
       setMeta({ page: result.meta.page, totalPages: result.meta.totalPages });
@@ -62,7 +67,12 @@ export default function RideHistoryPanel() {
     loadHistory(1);
   }, []);
 
-  if (loading) {
+  function openDetail(rideId: string) {
+    setDetailId(rideId);
+    setDetailOpen(true);
+  }
+
+  if (loading && rides.length === 0) {
     return (
       <div className="flex items-center justify-center py-12 text-neutral-400">
         <Loader2 className="size-5 animate-spin mr-2" />
@@ -77,58 +87,82 @@ export default function RideHistoryPanel() {
 
   if (rides.length === 0) {
     return (
-      <p className="py-8 text-center text-sm text-neutral-400">No rides yet</p>
+      <div className="rounded-xl border border-dashed border-neutral-200 py-12 text-center">
+        <p className="text-sm font-medium text-neutral-600">No rides yet</p>
+        <p className="mt-1 text-xs text-neutral-400">
+          Completed and cancelled trips will appear here.
+        </p>
+      </div>
     );
   }
 
   return (
     <div>
       <ul className="space-y-3">
-        {rides.map((ride) => (
-          <li
-            key={ride.id}
-            className="rounded-xl border border-neutral-200 bg-white p-4 transition hover:border-neutral-300"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-neutral-900">
-                  {formatDate(ride.completedAt ?? ride.startedAt)}
-                </p>
-                <p className="mt-2 flex items-start gap-2 text-sm text-neutral-600">
-                  <MapPin className="mt-0.5 size-3.5 shrink-0" />
-                  <span className="line-clamp-2">
-                    {formatAddress(ride.pickupAddress)} →{" "}
-                    {formatAddress(ride.dropAddress)}
-                  </span>
-                </p>
-                <p className="mt-2 text-xs text-neutral-500">
-                  {VEHICLE_LABEL[ride.vehicleType] ?? ride.vehicleType}
-                </p>
-              </div>
-              <div className="shrink-0 text-right">
-                <p className="text-sm font-semibold text-neutral-900">
-                  ₹{(ride.finalFare ?? ride.estimatedFare).toFixed(2)}
-                </p>
-                <p
-                  className={`mt-1 text-xs ${
-                    ride.status === "COMPLETED"
-                      ? "text-[#2e7d32]"
-                      : "text-red-500"
-                  }`}
-                >
-                  {ride.status === "COMPLETED" ? "Completed" : "Cancelled"}
-                </p>
-              </div>
-            </div>
-          </li>
-        ))}
+        {rides.map((ride) => {
+          const captainName = ride.captain?.user?.fullName;
+          return (
+            <li
+              key={ride.id}
+              className="rounded-xl border border-neutral-200 bg-white p-4 transition hover:border-neutral-300"
+            >
+              <button
+                type="button"
+                className="w-full text-left"
+                onClick={() => openDetail(ride.id)}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-neutral-900">
+                      {formatDate(ride.completedAt ?? ride.startedAt)}
+                    </p>
+                    <p className="mt-2 flex items-start gap-2 text-sm text-neutral-600">
+                      <MapPin className="mt-0.5 size-3.5 shrink-0" />
+                      <span className="line-clamp-2">
+                        {formatAddress(ride.pickupAddress)} →{" "}
+                        {formatAddress(ride.dropAddress)}
+                      </span>
+                    </p>
+                    <p className="mt-2 text-xs text-neutral-500">
+                      {VEHICLE_LABEL[ride.vehicleType] ?? ride.vehicleType}
+                      {captainName ? ` · ${captainName}` : ""}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-sm font-semibold text-neutral-900">
+                      ₹{(ride.finalFare ?? ride.estimatedFare).toFixed(2)}
+                    </p>
+                    <p
+                      className={`mt-1 text-xs ${
+                        ride.status === "COMPLETED"
+                          ? "text-[#2e7d32]"
+                          : "text-red-500"
+                      }`}
+                    >
+                      {ride.status === "COMPLETED" ? "Completed" : "Cancelled"}
+                    </p>
+                  </div>
+                </div>
+              </button>
+              {ride.status === "COMPLETED" && ride.captain && (
+                <div className="mt-3 flex justify-end border-t border-neutral-100 pt-3">
+                  <ReportCaptainModal
+                    rideId={ride.id}
+                    captainName={captainName}
+                  />
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ul>
 
       {meta.totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 mt-5">
           <button
+            type="button"
             onClick={() => loadHistory(meta.page - 1)}
-            disabled={meta.page === 1}
+            disabled={meta.page === 1 || loading}
             className="px-4 py-1.5 rounded-lg border text-sm text-neutral-600 disabled:opacity-40 hover:bg-neutral-50"
           >
             Previous
@@ -137,14 +171,21 @@ export default function RideHistoryPanel() {
             {meta.page} / {meta.totalPages}
           </span>
           <button
+            type="button"
             onClick={() => loadHistory(meta.page + 1)}
-            disabled={meta.page === meta.totalPages}
+            disabled={meta.page === meta.totalPages || loading}
             className="px-4 py-1.5 rounded-lg border text-sm text-neutral-600 disabled:opacity-40 hover:bg-neutral-50"
           >
             Next
           </button>
         </div>
       )}
+
+      <RideDetailDialog
+        rideId={detailId}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+      />
     </div>
   );
 }

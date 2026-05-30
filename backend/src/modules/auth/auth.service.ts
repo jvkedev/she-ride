@@ -27,6 +27,7 @@ import { RegisterDto, VerifyRegisterOtpDto } from './dto/register.dto';
 import type { SendLoginOtpDto, VerifyLoginOtpDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import type { SelectRoleDto } from './dto/select-role.dto';
+import type { ChangePasswordDto } from './dto/change-password.dto';
 
 type PendingRegisterData = {
   fullName: string;
@@ -435,5 +436,33 @@ export class AuthService {
       requiresRoleSelection: user.role === UserRole.PENDING,
       ...tokens,
     };
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, password: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const isValid = await argon2.verify(user.password, dto.currentPassword);
+    if (!isValid) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    const hashedPassword = await argon2.hash(dto.newPassword);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: hashedPassword,
+        refreshToken: null,
+      },
+    });
+
+    return { message: 'Password updated successfully' };
   }
 }

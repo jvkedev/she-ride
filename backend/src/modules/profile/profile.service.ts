@@ -2,28 +2,6 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
 
-export interface RiderProfile {
-  id: string;
-  fullName: string;
-  email: string;
-  phoneNumber: string;
-  profileImage: string | null;
-  gender: string | null;
-  dateOfBirth: string | null;
-  walletBalance: number;
-  rating: number;
-  totalRides: number;
-  cancelledRides: number;
-  emergencyContactName: string | null;
-  emergencyContactPhone: string | null;
-  defaultPickupAddress: string | null;
-  defaultDropAddress: string | null;
-  ridePreference: string | null;
-  safetyAlertEnabled: boolean;
-  shareLiveLocation: boolean;
-  memberSince: string;
-}
-
 @Injectable()
 export class ProfileService {
   constructor(
@@ -34,9 +12,7 @@ export class ProfileService {
   async getRiderProfile(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: {
-        rider: true,
-      },
+      include: { rider: true },
     });
 
     if (!user || !user.rider)
@@ -50,17 +26,16 @@ export class ProfileService {
       profileImage: user.rider.profileImage,
       gender: user.rider.gender,
       dateOfBirth: user.rider.dateOfBirth,
-      walletBalance: user.rider.walletBalance,
       rating: user.rider.averageRating,
       totalRides: user.rider.totalRides,
       cancelledRides: user.rider.cancelledRides,
       emergencyContactName: user.rider.emergencyContactName,
       emergencyContactPhone: user.rider.emergencyContactPhone,
-      defaultPickupAddress: user.rider.defaultPickupAddress,
-      defaultDropAddress: user.rider.defaultDropAddress,
       ridePreference: user.rider.ridePreference,
       safetyAlertEnabled: user.rider.safetyAlertEnabled,
       shareLiveLocation: user.rider.shareLiveLocation,
+      notifyRideUpdates: user.rider.notifyRideUpdates,
+      defaultPaymentMethod: user.rider.defaultPaymentMethod,
       memberSince: user.createdAt,
     };
   }
@@ -69,7 +44,6 @@ export class ProfileService {
     const rider = await this.prisma.rider.findUnique({ where: { userId } });
     if (!rider) throw new NotFoundException('Rider profile not found');
 
-    // Update User table fields
     if (dto.fullName || dto.email) {
       await this.prisma.user.update({
         where: { id: userId },
@@ -80,7 +54,6 @@ export class ProfileService {
       });
     }
 
-    // Update Rider table fields
     const updated = await this.prisma.rider.update({
       where: { userId },
       data: {
@@ -92,18 +65,15 @@ export class ProfileService {
         ...(dto.emergencyContactPhone && {
           emergencyContactPhone: dto.emergencyContactPhone,
         }),
-        ...(dto.defaultPickupAddress !== undefined && {
-          defaultPickupAddress: dto.defaultPickupAddress,
-        }), // ← add
-        ...(dto.defaultDropAddress !== undefined && {
-          defaultDropAddress: dto.defaultDropAddress,
-        }), // ← add
         ...(dto.ridePreference && { ridePreference: dto.ridePreference }),
         ...(dto.safetyAlertEnabled !== undefined && {
           safetyAlertEnabled: dto.safetyAlertEnabled,
         }),
         ...(dto.shareLiveLocation !== undefined && {
           shareLiveLocation: dto.shareLiveLocation,
+        }),
+        ...(dto.notifyRideUpdates !== undefined && {
+          notifyRideUpdates: dto.notifyRideUpdates,
         }),
       },
       include: { user: true },
@@ -116,11 +86,10 @@ export class ProfileService {
       dateOfBirth: updated.dateOfBirth,
       emergencyContactName: updated.emergencyContactName,
       emergencyContactPhone: updated.emergencyContactPhone,
-      defaultPickupAddress: updated.defaultPickupAddress,
-      defaultDropAddress: updated.defaultDropAddress,
       ridePreference: updated.ridePreference,
       safetyAlertEnabled: updated.safetyAlertEnabled,
       shareLiveLocation: updated.shareLiveLocation,
+      notifyRideUpdates: updated.notifyRideUpdates,
     };
   }
 
@@ -131,16 +100,13 @@ export class ProfileService {
     });
     if (!rider) throw new NotFoundException('Rider profile not found');
 
-    // Delete old image from Cloudinary if exists
     if (rider.profileImage) {
       const publicId = this.extractPublicId(rider.profileImage);
       if (publicId) await this.cloudinary.deleteImage(publicId);
     }
 
-    // Upload new image
     const url = await this.cloudinary.uploadImage(file, 'she-ride/riders');
 
-    // Save to DB
     await this.prisma.rider.update({
       where: { userId },
       data: { profileImage: url },
@@ -151,13 +117,11 @@ export class ProfileService {
 
   private extractPublicId(url: string): string | null {
     try {
-      // e.g. https://res.cloudinary.com/cloud/image/upload/v123/she-ride/riders/abc.jpg
-      // extracts: she-ride/riders/abc
       const parts = url.split('/upload/');
       if (parts.length < 2) return null;
-      const withVersion = parts[1]; // v123/she-ride/riders/abc.jpg
+      const withVersion = parts[1];
       const withoutVersion = withVersion.replace(/^v\d+\//, '');
-      return withoutVersion.replace(/\.[^.]+$/, ''); // remove extension
+      return withoutVersion.replace(/\.[^.]+$/, '');
     } catch {
       return null;
     }
@@ -171,9 +135,8 @@ export class UpdateRiderProfileDto {
   dateOfBirth?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
-  defaultPickupAddress?: string;
-  defaultDropAddress?: string;
   ridePreference?: 'QUIET' | 'CHATTY' | 'WOMEN_ONLY' | 'PET_FRIENDLY';
   safetyAlertEnabled?: boolean;
   shareLiveLocation?: boolean;
+  notifyRideUpdates?: boolean;
 }

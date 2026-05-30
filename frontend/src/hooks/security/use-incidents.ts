@@ -55,6 +55,7 @@ export function useAssignIncident() {
       incidentsApi.assign(id, { assigneeId }),
     onSuccess: (_, { id }) => {
       qc.invalidateQueries({ queryKey: incidentKeys.detail(id) });
+      qc.invalidateQueries({ queryKey: incidentKeys.timeline(id) });
       qc.invalidateQueries({ queryKey: incidentKeys.all() });
     },
   });
@@ -73,6 +74,7 @@ export function useUpdateIncidentStatus() {
     }) => incidentsApi.updateStatus(id, body),
     onSuccess: (_, { id }) => {
       qc.invalidateQueries({ queryKey: incidentKeys.detail(id) });
+      qc.invalidateQueries({ queryKey: incidentKeys.timeline(id) });
       qc.invalidateQueries({ queryKey: incidentKeys.all() });
       qc.invalidateQueries({ queryKey: incidentKeys.stats() });
     },
@@ -86,6 +88,7 @@ export function useUpdateIncidentPriority() {
       incidentsApi.updatePriority(id, { priority }),
     onSuccess: (_, { id }) => {
       qc.invalidateQueries({ queryKey: incidentKeys.detail(id) });
+      qc.invalidateQueries({ queryKey: incidentKeys.timeline(id) });
       qc.invalidateQueries({ queryKey: incidentKeys.all() });
     },
   });
@@ -122,6 +125,7 @@ export function useResolveIncident() {
     }) => incidentsApi.resolve(id, body),
     onSuccess: (_, { id }) => {
       qc.invalidateQueries({ queryKey: incidentKeys.detail(id) });
+      qc.invalidateQueries({ queryKey: incidentKeys.timeline(id) });
       qc.invalidateQueries({ queryKey: incidentKeys.all() });
       qc.invalidateQueries({ queryKey: incidentKeys.stats() });
     },

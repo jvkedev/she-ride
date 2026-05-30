@@ -1,4 +1,4 @@
-import IncidentInvestigationPanel from "@/components/security/incidents/incident-investigation-panel";
+import IncidentDetailView from "@/components/security/incidents/incident-detail-view";
 
 export default async function IncidentDetailPage({
   params,
@@ -7,9 +7,5 @@ export default async function IncidentDetailPage({
 }) {
   const { id } = await params;
 
-  return (
-    <div className="p-6">
-      <IncidentInvestigationPanel incidentId={id} />
-    </div>
-  );
+  return <IncidentDetailView incidentId={id} />;
 }

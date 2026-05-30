@@ -1,19 +1,25 @@
 "use client";
 import "leaflet/dist/leaflet.css";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import {
   MapContainer,
   Marker,
   Popup,
   TileLayer,
-  Polyline,
-  useMap,
 } from "react-leaflet";
+import RoutePolyline from "@/components/maps/route-polyline";
+import AnimatedCaptainMarker from "@/components/maps/animated-captain-marker";
+import { buildPreviewRoute } from "@/services/routing/routing.service";
 import L from "leaflet";
 import MapController from "@/components/maps/map-controller";
 import MapZoomControls from "@/components/maps/map-zoom-controls";
+import MapBoundsFitter from "@/components/maps/map-bounds-fitter";
+import MapSmoothFollow from "@/components/maps/map-smooth-follow";
+import {
+  rideStatusToCameraMode,
+  type MapCameraMode,
+} from "@/lib/maps/map-camera";
 import axios from "axios";
-import React from "react";
 import {
   Search,
   CheckCircle,
@@ -25,12 +31,15 @@ import {
 import {
   connectSocket,
   joinRideRoom,
-  getRoute,
 } from "@/services/socket/socket.service";
+import {
+  getRouteWithMeta,
+  formatDistance,
+  formatDuration,
+} from "@/services/routing/routing.service";
 
 const DEFAULT: [number, number] = [28.6139, 77.209];
 
-// Vehicle emoji icon for captain
 function createVehicleIcon(vehicleType?: string) {
   const emoji =
     vehicleType === "BIKE"
@@ -43,72 +52,28 @@ function createVehicleIcon(vehicleType?: string) {
 
   return L.divIcon({
     className: "",
-    html: `<div style="
-      font-size:28px;line-height:1;
-      filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4));
-      user-select:none;
-    ">${emoji}</div>`,
+    html: `<div style="font-size:28px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4));user-select:none;">${emoji}</div>`,
     iconSize: [36, 36],
     iconAnchor: [18, 18],
   });
 }
 
-// Pink dot for rider
-function createRiderIcon() {
+function createPickupIcon() {
   return L.divIcon({
     className: "",
-    html: `<div style="
-      width:16px;height:16px;
-      background:#ec4899;border:3px solid white;
-      border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.35);
-    "></div>`,
+    html: `<div style="width:16px;height:16px;background:#2563eb;border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>`,
     iconSize: [16, 16],
     iconAnchor: [8, 8],
   });
 }
 
-function getDistanceKm(
-  [lat1, lng1]: [number, number],
-  [lat2, lng2]: [number, number],
-) {
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const R = 6371; // kilometers
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-// Pans to a position only when it's a real GPS coord (not DEFAULT)
-function MapPanner({
-  position,
-  hasRealGps,
-}: {
-  position: [number, number];
-  hasRealGps: boolean;
-}) {
-  const map = useMap();
-  const hasFlown = useRef(false);
-
-  useEffect(() => {
-    if (!hasRealGps) return;
-    if (!Number.isFinite(position[0]) || !Number.isFinite(position[1])) return;
-
-    if (!hasFlown.current) {
-      const t = setTimeout(() => {
-        map.setView(position, 15, { animate: false });
-        hasFlown.current = true;
-      }, 300);
-      return () => clearTimeout(t);
-    }
-
-    map.panTo(position, { animate: true, duration: 0.5 });
-  }, [position, hasRealGps, map]);
-
-  return null;
+function createDropIcon() {
+  return L.divIcon({
+    className: "",
+    html: `<div style="width:16px;height:16px;background:#10b981;border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+  });
 }
 
 interface StatusConfig {
@@ -125,12 +90,12 @@ const statusConfig: Record<string, StatusConfig> = {
   },
   ACCEPTED: {
     icon: <CheckCircle className="h-4 w-4" />,
-    label: "Captain accepted!",
+    label: "Captain accepted",
     color: "text-green-500",
   },
   ARRIVING: {
     icon: <Car className="h-4 w-4" />,
-    label: "Captain is on the way",
+    label: "Captain is arriving",
     color: "text-orange-500",
   },
   IN_PROGRESS: {
@@ -150,66 +115,84 @@ const statusConfig: Record<string, StatusConfig> = {
   },
 };
 
-interface RideLiveMapProps {
+export interface RideLiveMapProps {
   rideId: string;
   pickupLat?: number;
   pickupLng?: number;
-  vehicleType?: string; // so we can show correct emoji
+  dropLat?: number;
+  dropLng?: number;
+  tripRoute?: [number, number][];
+  vehicleType?: string;
+  initialStatus?: string;
 }
 
 export default function RideLiveMap({
   rideId,
   pickupLat,
   pickupLng,
+  dropLat,
+  dropLng,
+  tripRoute = [],
   vehicleType,
+  initialStatus = "SEARCHING",
 }: RideLiveMapProps) {
-  // Captain location (from socket)
   const [captainPos, setCaptainPos] = useState<[number, number] | null>(null);
   const [hasCaptain, setHasCaptain] = useState(false);
+  const [rideStatus, setRideStatus] = useState(initialStatus);
+  const [navRoute, setNavRoute] = useState<[number, number][]>([]);
+  const [trail, setTrail] = useState<[number, number][]>([]);
+  const [etaMinutes, setEtaMinutes] = useState<number | null>(null);
+  const [routeDistanceKm, setRouteDistanceKm] = useState<number | null>(null);
+  const [captainName, setCaptainName] = useState<string | null>(null);
 
-  // Rider's own live location
-  const [riderPos, setRiderPos] = useState<[number, number]>(DEFAULT);
-  const [hasRiderGps, setHasRiderGps] = useState(false);
-
-  const [rideStatus, setRideStatus] = useState<string>("SEARCHING");
-  const [path, setPath] = useState<[number, number][]>([]);
-  const [route, setRoute] = useState<[number, number][]>([]);
-  const [distanceToCaptain, setDistanceToCaptain] = useState<number | null>(
-    null,
-  );
-
-  const watchId = useRef<number | null>(null);
   const captainIcon = useRef(createVehicleIcon(vehicleType));
-  const riderIcon = useRef(createRiderIcon());
+  const pickupIcon = useRef(createPickupIcon());
+  const dropIcon = useRef(createDropIcon());
+  const lastRouteCalc = useRef(0);
+  const rideStatusRef = useRef(rideStatus);
 
-  // Update captain icon when vehicle type changes
+  useEffect(() => {
+    rideStatusRef.current = rideStatus;
+    lastRouteCalc.current = 0;
+  }, [rideStatus]);
+
   useEffect(() => {
     captainIcon.current = createVehicleIcon(vehicleType);
   }, [vehicleType]);
 
-  // Rider's own GPS — updates every 3s
-  useEffect(() => {
-    if (!navigator.geolocation) return;
+  const updateRoute = useCallback(
+    async (capLat: number, capLng: number, status: string) => {
+      const now = Date.now();
+      if (now - lastRouteCalc.current < 8000) return;
+      lastRouteCalc.current = now;
 
-    watchId.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const lat = Number(pos.coords.latitude);
-        const lng = Number(pos.coords.longitude);
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-        setRiderPos([lat, lng]);
-        setHasRiderGps(true);
-      },
-      (err) => console.error("Rider GPS error:", err.message),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 3000 },
-    );
+      const toPickup = ["SEARCHING", "ACCEPTED", "ARRIVING"].includes(status);
+      const targetLat = toPickup ? pickupLat : dropLat;
+      const targetLng = toPickup ? pickupLng : dropLng;
 
-    return () => {
-      if (watchId.current !== null)
-        navigator.geolocation.clearWatch(watchId.current);
-    };
-  }, []);
+      if (
+        targetLat == null ||
+        targetLng == null ||
+        !Number.isFinite(targetLat) ||
+        !Number.isFinite(targetLng)
+      ) {
+        return;
+      }
 
-  // Socket — listen for captain location updates
+      const preview =
+        buildPreviewRoute(capLat, capLng, targetLat, targetLng);
+      setNavRoute(preview);
+
+      const result = await getRouteWithMeta(capLat, capLng, targetLat, targetLng);
+      if (result.coordinates.length > 1) {
+        setNavRoute(result.coordinates);
+        setEtaMinutes(result.durationMinutes);
+        setRouteDistanceKm(result.distanceKm);
+      }
+    },
+    [pickupLat, pickupLng, dropLat, dropLng],
+  );
+
   useEffect(() => {
     if (!rideId) return;
 
@@ -224,38 +207,38 @@ export default function RideLiveMap({
     const socket = connectSocket(payload!.sub);
     joinRideRoom(rideId);
 
-    socket.on(
-      "captain:location",
-      async (data: { lat: number; lng: number }) => {
-        if (!Number.isFinite(data.lat) || !Number.isFinite(data.lng)) return;
-        const pos: [number, number] = [data.lat, data.lng];
-        setCaptainPos(pos);
-        setHasCaptain(true);
-        setPath((prev) => [...prev, pos]);
+    const onCaptainLocation = (data: { lat: number; lng: number }) => {
+      if (!Number.isFinite(data.lat) || !Number.isFinite(data.lng)) return;
+      const pos: [number, number] = [data.lat, data.lng];
+      setCaptainPos(pos);
+      setHasCaptain(true);
+      setTrail((prev) => {
+        const last = prev[prev.length - 1];
+        if (last && last[0] === pos[0] && last[1] === pos[1]) return prev;
+        return [...prev.slice(-40), pos];
+      });
+      void updateRoute(data.lat, data.lng, rideStatusRef.current);
+    };
 
-        // OSRM route: captain → pickup
-        if (pickupLat && pickupLng) {
-          const osrmRoute = await getRoute(
-            data.lat,
-            data.lng,
-            pickupLat,
-            pickupLng,
-          );
-          if (osrmRoute.length > 1) setRoute(osrmRoute);
-        }
+    socket.on("captain:location", onCaptainLocation);
+
+    socket.on(
+      "ride:accepted",
+      (data: { status: string; captain?: { name: string } }) => {
+        setRideStatus(data.status);
+        if (data.captain?.name) setCaptainName(data.captain.name);
       },
     );
 
-    socket.on("ride:accepted", (data: { status: string }) => {
-      setRideStatus(data.status);
-    });
-
     socket.on("ride:status", (data: { status: string }) => {
       setRideStatus(data.status);
+      lastRouteCalc.current = 0;
+      if (captainPos) {
+        void updateRoute(captainPos[0], captainPos[1], data.status);
+      }
     });
 
-    // Fallback poll every 5s for status
-    const interval = setInterval(async () => {
+    const poll = async () => {
       try {
         const { data } = await axios.get(
           `${process.env.NEXT_PUBLIC_API_URL}/rides/${rideId}/captain-location`,
@@ -263,60 +246,94 @@ export default function RideLiveMap({
         );
         if (data.status) setRideStatus(data.status);
         if (
-          data.lat &&
-          data.lng &&
+          data.lat != null &&
+          data.lng != null &&
           Number.isFinite(data.lat) &&
           Number.isFinite(data.lng)
         ) {
-          setCaptainPos([data.lat, data.lng]);
-          setHasCaptain(true);
+          onCaptainLocation({ lat: data.lat, lng: data.lng });
         }
       } catch {
-        // silently ignore
+        // ignore
       }
-    }, 5000);
+    };
+
+    poll();
+    const interval = setInterval(poll, 5000);
 
     return () => {
-      socket.off("captain:location");
+      socket.off("captain:location", onCaptainLocation);
       socket.off("ride:accepted");
       socket.off("ride:status");
       clearInterval(interval);
     };
-  }, [rideId, pickupLat, pickupLng]);
+  }, [rideId, updateRoute]);
 
-  useEffect(() => {
-    if (captainPos && hasRiderGps) {
-      setDistanceToCaptain(getDistanceKm(captainPos, riderPos));
-    } else {
-      setDistanceToCaptain(null);
+  const config = statusConfig[rideStatus] ?? statusConfig.SEARCHING;
+
+  const cameraMode: MapCameraMode =
+    rideStatus === "IN_PROGRESS"
+      ? "active-trip"
+      : hasCaptain && captainPos
+        ? rideStatusToCameraMode(rideStatus, "rider")
+        : pickupLat != null && pickupLng != null
+          ? "single"
+          : "single";
+
+  const cameraPoints: [number, number][] = useMemo(() => {
+    if (rideStatus === "IN_PROGRESS" && captainPos) {
+      const pts: [number, number][] = [captainPos];
+      if (dropLat != null && dropLng != null) pts.push([dropLat, dropLng]);
+      return pts;
     }
-  }, [captainPos, riderPos, hasRiderGps]);
+    if (hasCaptain && captainPos && pickupLat != null && pickupLng != null) {
+      return [captainPos, [pickupLat, pickupLng]];
+    }
+    if (pickupLat != null && pickupLng != null) {
+      return [[pickupLat, pickupLng]];
+    }
+    return [];
+  }, [
+    rideStatus,
+    hasCaptain,
+    captainPos,
+    pickupLat,
+    pickupLng,
+    dropLat,
+    dropLng,
+  ]);
 
-  const config = statusConfig[rideStatus];
+  const cameraKey = `${rideStatus}-${captainPos?.[0]?.toFixed(3) ?? ""}-${captainPos?.[1]?.toFixed(3) ?? ""}-${navRoute.length}`;
 
-  // Pan to captain when found, otherwise rider
-  const focusPos = hasCaptain ? captainPos! : hasRiderGps ? riderPos : DEFAULT;
-  const hasFocus = hasCaptain || hasRiderGps;
+  const tripPolyline =
+    tripRoute.length > 1
+      ? tripRoute
+      : pickupLat != null &&
+          pickupLng != null &&
+          dropLat != null &&
+          dropLng != null
+        ? buildPreviewRoute(pickupLat, pickupLng, dropLat, dropLng)
+        : [];
 
   return (
     <div className="relative h-full w-full">
-      {/* Status banner */}
       {config && (
-        <div className="absolute top-3 left-1/2 z-1000 -translate-x-1/2 flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium shadow-md">
-          <span className={config.color}>{config.icon}</span>
-          <span className="text-neutral-700">
-            {config.label}
-            {distanceToCaptain !== null && hasCaptain && hasRiderGps && (
-              <>
-                {" "}
-                {` · ${
-                  distanceToCaptain < 1
-                    ? `${Math.round(distanceToCaptain * 1000)}m away`
-                    : `${distanceToCaptain.toFixed(1)} km away`
-                }`}
-              </>
-            )}
+        <div className="absolute top-3 left-1/2 z-[1000] -translate-x-1/2 flex max-w-[90%] flex-col items-center gap-0.5 rounded-full bg-white px-4 py-2 text-sm font-medium shadow-md">
+          <span className={`flex items-center gap-2 ${config.color}`}>
+            {config.icon}
+            <span className="text-neutral-700">
+              {config.label}
+              {captainName ? ` · ${captainName}` : ""}
+            </span>
           </span>
+          {etaMinutes != null && hasCaptain && rideStatus !== "COMPLETED" && (
+            <span className="text-xs text-neutral-500">
+              ETA ~{formatDuration(etaMinutes)}
+              {routeDistanceKm != null
+                ? ` · ${formatDistance(routeDistanceKm)}`
+                : ""}
+            </span>
+          )}
         </div>
       )}
 
@@ -336,46 +353,45 @@ export default function RideLiveMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {/* OSRM shortest route — blue */}
-        {route.length > 1 && (
-          <Polyline
-            positions={route}
-            color="#3b82f6"
-            weight={4}
-            opacity={0.7}
+        <RoutePolyline positions={tripPolyline} variant="muted" />
+
+        <RoutePolyline positions={navRoute} variant="primary" />
+
+        {trail.length > 1 && (
+          <RoutePolyline positions={trail} variant="preview" />
+        )}
+
+        {pickupLat != null && pickupLng != null && (
+          <Marker position={[pickupLat, pickupLng]} icon={pickupIcon.current}>
+            <Popup>Pickup</Popup>
+          </Marker>
+        )}
+
+        {dropLat != null && dropLng != null && (
+          <Marker position={[dropLat, dropLng]} icon={dropIcon.current}>
+            <Popup>Destination</Popup>
+          </Marker>
+        )}
+
+        <AnimatedCaptainMarker
+          position={hasCaptain ? captainPos : null}
+          icon={captainIcon.current}
+        />
+
+        {cameraPoints.length > 0 && (
+          <MapBoundsFitter
+            points={cameraPoints}
+            route={navRoute.length > 1 ? navRoute : tripPolyline}
+            mode={cameraMode}
+            cameraKey={cameraKey}
+            padding={[88, 88]}
           />
         )}
 
-        {/* Captain movement trail — pink */}
-        {path.length > 1 && (
-          <Polyline positions={path} color="#ec4899" weight={2} opacity={0.4} />
-        )}
-
-        {hasCaptain && hasRiderGps && captainPos && (
-          <Polyline
-            positions={[riderPos, captainPos]}
-            color="#f59e0b"
-            dashArray="8,8"
-            weight={3}
-            opacity={0.75}
-          />
-        )}
-
-        {/* Captain marker — vehicle emoji */}
         {hasCaptain && captainPos && (
-          <Marker position={captainPos} icon={captainIcon.current}>
-            <Popup>Captain is here</Popup>
-          </Marker>
+          <MapSmoothFollow position={captainPos} enabled />
         )}
 
-        {/* Rider marker — pink dot */}
-        {hasRiderGps && (
-          <Marker position={riderPos} icon={riderIcon.current}>
-            <Popup>You are here</Popup>
-          </Marker>
-        )}
-
-        <MapPanner position={focusPos} hasRealGps={hasFocus} />
         <MapController />
         <MapZoomControls />
       </MapContainer>

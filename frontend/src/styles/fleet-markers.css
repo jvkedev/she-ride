@@ -1,0 +1,78 @@
+.fleet-marker-leaflet-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.fleet-marker {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  transform: rotate(var(--fleet-heading, 0deg));
+  transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.fleet-marker__pulse {
+  position: absolute;
+  inset: 6px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--fleet-color) 28%, transparent);
+  opacity: 0;
+}
+
+.fleet-marker--moving .fleet-marker__pulse {
+  animation: fleet-pulse 1.6s ease-out infinite;
+}
+
+.fleet-marker__ring {
+  position: absolute;
+  inset: 10px;
+  border-radius: 9999px;
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+}
+
+.fleet-marker__body {
+  position: absolute;
+  inset: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: var(--fleet-color);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+}
+
+.fleet-marker__glyph {
+  font-size: 16px;
+  line-height: 1;
+  transform: rotate(calc(-1 * var(--fleet-heading, 0deg)));
+}
+
+.fleet-marker__arrow {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 10px solid var(--fleet-color);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+}
+
+@keyframes fleet-pulse {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.65;
+  }
+  70% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}

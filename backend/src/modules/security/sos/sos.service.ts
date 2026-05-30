@@ -98,7 +98,11 @@ export class SosService {
       where: { status: SosStatus.ACTIVE },
       include: {
         rider: { include: { user: true } },
-        ride: true,
+        ride: {
+          include: {
+            captain: { include: { user: { select: { fullName: true } } } },
+          },
+        },
         locationSnapshots: {
           orderBy: { capturedAt: 'desc' },
           take: 1,

@@ -13,17 +13,21 @@ import {
   Check,
   Upload,
   Loader2,
+  Shield,
 } from "lucide-react";
 
 import CaptainCard from "@/components/captain/shared/captain-card";
 import { captainHeading } from "@/lib/captain/captain-styles";
 import { cn } from "@/lib/utils";
 import {
-  getCaptainProfile,
   updateCaptainProfile,
   uploadCaptainPhoto,
   type CaptainProfile,
 } from "@/services/captain/captain-profile.service";
+import {
+  useCaptainProfile,
+  useSetCaptainProfileCache,
+} from "@/hooks/captain/use-captain-profile";
 
 function formatDate(dateStr?: string | null) {
   if (!dateStr) return "—";
@@ -105,6 +109,8 @@ function EditField({
 }
 
 export default function CaptainProfilePanel() {
+  const { data: cachedProfile, isLoading: profileLoading } = useCaptainProfile();
+  const setProfileCache = useSetCaptainProfileCache();
   const [profile, setProfile] = useState<CaptainProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -114,14 +120,14 @@ export default function CaptainProfilePanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    getCaptainProfile()
-      .then((p) => {
-        setProfile(p);
-        setForm(p);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
+    if (cachedProfile) {
+      setProfile(cachedProfile);
+      setForm(cachedProfile);
+      setLoading(false);
+    } else if (!profileLoading) {
+      setLoading(false);
+    }
+  }, [cachedProfile, profileLoading]);
 
   function handleChange(key: keyof CaptainProfile, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -133,6 +139,7 @@ export default function CaptainProfilePanel() {
     try {
       const updated = await updateCaptainProfile(form);
       setProfile(updated);
+      setProfileCache(updated);
       setEditing(false);
     } catch (err) {
       console.error("Failed to save:", err);
@@ -152,7 +159,11 @@ export default function CaptainProfilePanel() {
     setPhotoUploading(true);
     try {
       const { profileImage } = await uploadCaptainPhoto(file);
-      setProfile((prev) => (prev ? { ...prev, profileImage } : prev));
+      setProfile((prev) => {
+        const next = prev ? { ...prev, profileImage } : prev;
+        if (next) setProfileCache(next);
+        return next;
+      });
     } catch (err) {
       console.error("Photo upload failed:", err);
     } finally {
@@ -370,6 +381,41 @@ export default function CaptainProfilePanel() {
             value={formatDate(profile.verifiedAt)}
           />
         </ul>
+      </CaptainCard>
+
+      {/* ── Emergency Contact ── */}
+      <CaptainCard>
+        <h2 className={cn(captainHeading, "flex items-center gap-2")}>
+          <Shield className="size-4 text-primary" /> Emergency contact
+        </h2>
+        {editing ? (
+          <div className="mt-4 space-y-3">
+            <EditField
+              label="Contact name"
+              value={(form.emergencyContactName as string) ?? ""}
+              onChange={(v) => handleChange("emergencyContactName", v)}
+            />
+            <EditField
+              label="Contact phone"
+              value={(form.emergencyContactPhone as string) ?? ""}
+              onChange={(v) => handleChange("emergencyContactPhone", v)}
+              type="tel"
+            />
+          </div>
+        ) : (
+          <ul className="mt-4 space-y-3">
+            <InfoRow
+              icon={<User className="size-4" />}
+              label="Name"
+              value={profile.emergencyContactName ?? "—"}
+            />
+            <InfoRow
+              icon={<Phone className="size-4" />}
+              label="Phone"
+              value={profile.emergencyContactPhone ?? "—"}
+            />
+          </ul>
+        )}
       </CaptainCard>
     </div>
   );

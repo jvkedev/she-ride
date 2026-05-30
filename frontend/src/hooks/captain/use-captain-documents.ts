@@ -1,37 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import axiosClient from "@/services/api/axios-client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-export type DocumentStatus = "verified" | "pending" | "rejected";
+import {
+  getCaptainDocuments,
+  type CaptainDocumentsResponse,
+} from "@/services/captain/captain-documents.service";
 
-export interface CaptainDocument {
-  name: string;
-  status: DocumentStatus;
-}
+export const CAPTAIN_DOCUMENTS_QUERY_KEY = ["captain", "documents"] as const;
 
 export function useCaptainDocuments() {
-  const [documents, setDocuments] = useState<CaptainDocument[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function fetchDocuments() {
-      try {
-        const res =
-          await axiosClient.get<CaptainDocument[]>("/captain/documents");
-        setDocuments(res.data);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to fetch documents",
-        );
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    void fetchDocuments();
-  }, []);
-
-  return { documents, loading, error };
+  return useQuery({
+    queryKey: CAPTAIN_DOCUMENTS_QUERY_KEY,
+    queryFn: getCaptainDocuments,
+    staleTime: 30_000,
+    retry: 1,
+  });
 }
+
+export function useInvalidateCaptainDocuments() {
+  const queryClient = useQueryClient();
+  return () =>
+    queryClient.invalidateQueries({ queryKey: CAPTAIN_DOCUMENTS_QUERY_KEY });
+}
+
+export function useSetCaptainDocumentsCache() {
+  const queryClient = useQueryClient();
+  return (data: CaptainDocumentsResponse) =>
+    queryClient.setQueryData(CAPTAIN_DOCUMENTS_QUERY_KEY, data);
+}
+
+export type { CaptainVerificationStatus, CaptainDocumentItem } from "@/services/captain/captain-documents.service";

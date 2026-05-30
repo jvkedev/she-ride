@@ -52,6 +52,10 @@ export interface ActiveRideDetails {
   };
   pickupAddress: string;
   dropAddress: string;
+  pickupLatitude: number;
+  pickupLongitude: number;
+  dropLatitude: number;
+  dropLongitude: number;
   estimatedFare: number | null;
   finalFare: number | null;
   distanceInKm: number | null;
@@ -87,10 +91,11 @@ export async function acceptRide(rideId: string): Promise<AcceptRideResponse> {
 }
 
 export async function updateLocation(lat: number, lng: number): Promise<void> {
-  await apiFetch("/rides/location", {
+  const res = await apiFetch("/rides/location", {
     method: "PATCH",
     body: JSON.stringify({ lat, lng }),
   });
+  if (!res.ok) throw new Error("Failed to update location");
 }
 
 export async function markArrived(rideId: string): Promise<void> {
@@ -130,6 +135,14 @@ export async function getActiveRide(
   return res.json();
 }
 
+export async function getCaptainActiveRide(): Promise<ActiveRideDetails | null> {
+  const res = await apiFetch("/rides/captain/active");
+  if (!res.ok) throw new Error("Failed to fetch active ride");
+  const data = await res.json();
+  return data ?? null;
+}
+
 export function declineRide(rideId: string): void {
-  console.log("Declined ride:", rideId);
+  // Client-side skip — ride remains available to other captains until accepted
+  void rideId;
 }

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { useAdminFilters } from "@/hooks/admin/use-admin-filters";
 import { DRIVER_STATUS_FILTERS } from "@/lib/admin/constants";
 import type { AdminDriver } from "@/lib/admin/types";
+import { fetchDrivers } from "@/services/admin/admin.service";
 
 type DriversTableProps = {
   onApprove?: (id: string) => void;
@@ -18,31 +19,30 @@ type DriversTableProps = {
 };
 
 export default function DriversTable({
-  onApprove,
-  onReject,
+  onApprove: _onApprove,
+  onReject: _onReject,
 }: DriversTableProps) {
   const [drivers, setDrivers] = useState<AdminDriver[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadDrivers = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchDrivers();
+      setDrivers(data);
+    } catch (fetchError) {
+      console.error("Error fetching drivers:", fetchError);
+      setError("Failed to load drivers. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchDrivers = async () => {
-      try {
-        const apiUrl =
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-        const response = await fetch(`${apiUrl}/admin/captains`);
-        if (response.ok) {
-          const data = await response.json();
-          setDrivers(data);
-        }
-      } catch (error) {
-        console.error("Error fetching drivers:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDrivers();
-  }, []);
+    loadDrivers();
+  }, [loadDrivers]);
 
   const { search, setSearch, statusFilter, setStatusFilter, filtered } =
     useAdminFilters(drivers, {
@@ -87,43 +87,35 @@ export default function DriversTable({
       {
         id: "actions",
         header: "Actions",
-        cell: ({ row }) =>
-          row.original.kycStatus === "pending" ? (
-            <div className="flex gap-1">
-              <Button
-                size="sm"
-                className="h-8 rounded-lg text-xs"
-                onClick={() => onApprove?.(row.original.id)}
-              >
-                Approve
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 rounded-lg text-xs"
-                onClick={() => onReject?.(row.original.id)}
-              >
-                Reject
-              </Button>
-            </div>
-          ) : (
-            <Link href={`/admin/drivers/${row.original.id}`}>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 rounded-lg text-xs"
-              >
-                View
-              </Button>
-            </Link>
-          ),
+        cell: ({ row }) => (
+          <Link href={`/admin/drivers/${row.original.id}`}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-lg text-xs"
+            >
+              {row.original.kycStatus === "pending" ? "Review KYC" : "View"}
+            </Button>
+          </Link>
+        ),
       },
     ],
-    [onApprove, onReject],
+    [],
   );
 
   if (loading) {
     return <div className="text-center py-8">Loading drivers...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-xl border border-red-100 bg-red-50 py-12">
+        <p className="text-sm text-red-600">{error}</p>
+        <Button size="sm" variant="outline" onClick={loadDrivers}>
+          Retry
+        </Button>
+      </div>
+    );
   }
 
   return (

@@ -1,10 +1,10 @@
 import CaptainPageLayout from "@/components/captain/layout/captain-page-layout";
-import AppPreferences from "@/components/captain/settings/app-preferences";
+import CaptainSettingsPanel from "@/components/captain/settings/captain-settings-panel";
 
 export default function CaptainSettingsPage() {
   return (
     <CaptainPageLayout title="Settings">
-      <AppPreferences />
+      <CaptainSettingsPanel />
     </CaptainPageLayout>
   );
 }

@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Bell, Menu, User } from "lucide-react";
+import { Menu, User } from "lucide-react";
 
 import DashboardLogoutButton from "@/components/shared/dashboard/logout-button";
 import { adminNavLinks } from "@/lib/admin/nav-links";
-import { adminOverviewStats, adminProfile } from "@/lib/admin/mock-data";
+import { useAdminProfile } from "@/hooks/admin/use-admin-profile";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 
 export default function AdminHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { data: profile } = useAdminProfile();
 
   return (
     <header className="sticky top-0 z-30 shrink-0 border-b border-neutral-200 bg-white">
@@ -75,29 +76,33 @@ export default function AdminHeader() {
         </div>
 
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-          <button
-            type="button"
-            aria-label="Notifications"
-            className="relative rounded-lg p-2 text-neutral-600 transition hover:bg-neutral-100"
-          >
-            <Bell className="size-5" />
-            <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-primary" />
-          </button>
-
           <Link
-            href="/admin/settings"
+            href="/admin/profile"
             className={cn(
               "flex items-center gap-2 rounded-lg border border-neutral-200 px-2 py-1.5 transition hover:bg-neutral-50",
             )}
           >
-            <div className="flex size-8 items-center justify-center rounded-full bg-neutral-200">
-              <User className="size-4 text-neutral-600" />
+            <div className="flex size-8 items-center justify-center overflow-hidden rounded-full bg-neutral-200">
+              {profile?.profileImage ? (
+                <img
+                  src={profile.profileImage}
+                  alt=""
+                  className="size-full object-cover"
+                />
+              ) : (
+                <User className="size-4 text-neutral-600" />
+              )}
             </div>
             <div className="hidden min-w-0 sm:block">
               <p className="truncate text-sm font-medium text-neutral-900">
-                {adminProfile.name}
+                {profile?.name ?? "Admin"}
               </p>
-              <p className="text-xs text-neutral-500">Admin</p>
+              <p className="truncate text-xs text-neutral-500">
+                {profile?.jobTitleLabel ?? profile?.permissionRoleLabel ?? "Admin"}
+                {profile?.departmentLabel
+                  ? ` · ${profile.departmentLabel}`
+                  : ""}
+              </p>
             </div>
           </Link>
         </div>

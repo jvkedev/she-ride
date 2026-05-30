@@ -15,14 +15,20 @@ type MapPanelSectionProps = {
   pickup?: [number, number];
   drop?: [number, number];
   route?: [number, number][];
+  routeIsPreview?: boolean;
   nearbyCaptains?: number;
+  routeDistanceKm?: number;
+  routeDurationMin?: number;
 };
 
 export default function MapPanelSection({
   pickup,
   drop,
   route,
+  routeIsPreview,
   nearbyCaptains,
+  routeDistanceKm,
+  routeDurationMin,
 }: MapPanelSectionProps) {
   return (
     <div className="relative h-full min-h-0 w-full overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
@@ -31,7 +37,10 @@ export default function MapPanelSection({
           pickup={pickup}
           drop={drop}
           route={route}
+          routeIsPreview={routeIsPreview}
           nearbyCaptains={nearbyCaptains}
+          routeDistanceKm={routeDistanceKm}
+          routeDurationMin={routeDurationMin}
         />
       </div>
     </div>
