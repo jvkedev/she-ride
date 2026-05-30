@@ -6,6 +6,8 @@ export const sosApi = {
   getActive: () => api.get("/security/sos/active").then((r) => r.data),
   getStats: () => api.get("/security/sos/stats").then((r) => r.data),
   getById: (id: string) => api.get(`/security/sos/${id}`).then((r) => r.data),
+  getMyActive: () =>
+    api.get("/security/sos/mine/active").then((r) => r.data),
   getRiderHistory: (riderId: string) =>
     api.get(`/security/sos/rider/${riderId}/history`).then((r) => r.data),
   resolve: (

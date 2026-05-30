@@ -141,7 +141,9 @@ export class RideGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
     }
 
-
+    if (data.role === 'SECURITY' || data.role === 'ADMIN') {
+      client.join('security:ops');
+    }
 
     console.log(`User ${data.userId} registered with socket ${client.id}`);
 
@@ -253,6 +255,20 @@ export class RideGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   }
 
+  @SubscribeMessage('join:sos')
+  handleJoinSos(
+    @MessageBody() data: { sosAlertId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    if (!data?.sosAlertId) return;
+    client.join(`sos:${data.sosAlertId}`);
+  }
+
+  @SubscribeMessage('join:security')
+  handleJoinSecurity(@ConnectedSocket() client: Socket) {
+    client.join('security:ops');
+  }
+
 
 
   notifySearchingProgress(rideId: string, payload: object) {
@@ -293,6 +309,34 @@ export class RideGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   notifyCaptainVerification(userId: string, payload: object) {
     this.server.to(`user:${userId}`).emit('captain:verification', payload);
+  }
+
+  notifySosCreated(payload: {
+    sosAlertId: string;
+    riderId: string;
+    riderUserId: string;
+    latitude: number;
+    longitude: number;
+    address?: string | null;
+  }) {
+    this.server.to('security:ops').emit('sos:created', payload);
+    this.server.to(`user:${payload.riderUserId}`).emit('sos:created', payload);
+  }
+
+  notifySosLocation(payload: {
+    sosAlertId: string;
+    latitude: number;
+    longitude: number;
+    capturedAt: string;
+    role?: 'RIDER' | 'CAPTAIN';
+  }) {
+    this.server.to('security:ops').emit('sos:location', payload);
+    this.server.to(`sos:${payload.sosAlertId}`).emit('sos:location', payload);
+  }
+
+  notifySosResolved(payload: { sosAlertId: string }) {
+    this.server.to('security:ops').emit('sos:resolved', payload);
+    this.server.to(`sos:${payload.sosAlertId}`).emit('sos:resolved', payload);
   }
 }
 

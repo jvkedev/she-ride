@@ -40,6 +40,7 @@ export class SosController {
     },
   ) {
     let riderId: string | null = null;
+    let triggeredByCaptainId: string | undefined;
 
     if (req.user.role === 'RIDER') {
       const rider = await this.prisma.rider.findUnique({
@@ -69,28 +70,45 @@ export class SosController {
         throw new NotFoundException('No active ride to attach SOS');
       }
       riderId = ride.riderId;
+      body.rideId = ride.id;
+      triggeredByCaptainId = captain.id;
     }
 
     if (!riderId) {
       throw new NotFoundException('Could not resolve rider for SOS');
     }
 
-    return this.sosService.triggerSos(riderId, body);
+    return this.sosService.triggerSos(riderId, {
+      ...body,
+      triggeredByRole: req.user.role as 'RIDER' | 'CAPTAIN',
+      triggeredByCaptainId,
+    });
   }
 
   // POST /security/sos/:id/location
-  // Rider pushes live GPS snapshot during active SOS
+  // Rider or captain pushes live GPS during active SOS
   @Post(':id/location')
-  @Roles('RIDER')
-  pushLocation(
+  @Roles('RIDER', 'CAPTAIN')
+  async pushLocation(
     @Param('id') id: string,
+    @Request() req,
     @Body()
     body: {
       latitude: number;
       longitude: number;
     },
   ) {
-    return this.sosService.pushLocationSnapshot(id, body);
+    return this.sosService.pushLocationSnapshot(id, req.user.id, req.user.role, body);
+  }
+
+  // GET /security/sos/mine/active
+  @Get('mine/active')
+  @Roles('RIDER', 'CAPTAIN')
+  getMyActive(@Request() req) {
+    return this.sosService.getMyActiveSos(
+      req.user.id,
+      req.user.role as 'RIDER' | 'CAPTAIN',
+    );
   }
 
   // GET /security/sos/active

@@ -1,8 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import SosLiveTracker, {
+  clearStoredActiveSosId,
+  getStoredActiveSosId,
+} from "@/components/shared/safety/sos-live-tracker";
 import { triggerSosWithLiveLocation } from "@/services/security/sos-trigger.service";
 import { cn } from "@/lib/utils";
 
@@ -20,20 +24,22 @@ export default function SosTriggerButton({
   label = "Trigger SOS",
 }: SosTriggerButtonProps) {
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [activeSosId, setActiveSosId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    const stored = getStoredActiveSosId();
+    if (stored) setActiveSosId(stored);
+  }, []);
+
   async function handleTrigger() {
-    if (loading) return;
+    if (loading || activeSosId) return;
     setLoading(true);
     setError(null);
-    setMessage(null);
 
     try {
-      await triggerSosWithLiveLocation({ rideId });
-      setMessage(
-        "SOS sent with your live GPS location. Support has been alerted.",
-      );
+      const alert = await triggerSosWithLiveLocation({ rideId });
+      setActiveSosId(alert.id);
     } catch (err) {
       setError(
         err instanceof Error
@@ -43,6 +49,19 @@ export default function SosTriggerButton({
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleResolved() {
+    setActiveSosId(null);
+    clearStoredActiveSosId();
+  }
+
+  if (activeSosId) {
+    return (
+      <div className={cn("space-y-3", className)}>
+        <SosLiveTracker sosAlertId={activeSosId} onResolved={handleResolved} />
+      </div>
+    );
   }
 
   return (
@@ -64,9 +83,6 @@ export default function SosTriggerButton({
         )}
         {loading ? "Sending live location…" : label}
       </Button>
-      {message && (
-        <p className="text-xs font-medium text-emerald-700">{message}</p>
-      )}
       {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
   );

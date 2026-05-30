@@ -178,6 +178,56 @@ export function joinRideRoom(rideId: string) {
 
 }
 
+export function joinSosRoom(sosAlertId: string) {
+  const s = getSocket();
+  if (!s.connected) {
+    s.connect();
+  }
+  s.emit("join:sos", { sosAlertId });
+}
+
+export function joinSecurityRoom() {
+  const s = getSocket();
+  if (!s.connected) {
+    s.connect();
+  }
+  s.emit("join:security");
+}
+
+export type SosLocationPayload = {
+  sosAlertId: string;
+  latitude: number;
+  longitude: number;
+  capturedAt: string;
+  role?: "RIDER" | "CAPTAIN";
+};
+
+export type SosResolvedPayload = {
+  sosAlertId: string;
+};
+
+export function subscribeSosEvents(handlers: {
+  onCreated?: (payload: SosLocationPayload & { riderId?: string }) => void;
+  onLocation?: (payload: SosLocationPayload) => void;
+  onResolved?: (payload: SosResolvedPayload) => void;
+}) {
+  const s = getSocket();
+
+  const onCreated = handlers.onCreated;
+  const onLocation = handlers.onLocation;
+  const onResolved = handlers.onResolved;
+
+  if (onCreated) s.on("sos:created", onCreated);
+  if (onLocation) s.on("sos:location", onLocation);
+  if (onResolved) s.on("sos:resolved", onResolved);
+
+  return () => {
+    if (onCreated) s.off("sos:created", onCreated);
+    if (onLocation) s.off("sos:location", onLocation);
+    if (onResolved) s.off("sos:resolved", onResolved);
+  };
+}
+
 
 
 export async function getRoute(

@@ -13,7 +13,7 @@ export function useActiveSos() {
   return useQuery({
     queryKey: sosKeys.active(),
     queryFn: sosApi.getActive,
-    refetchInterval: 10_000, // auto-refresh every 10s
+    refetchInterval: 4_000,
   });
 }
 
@@ -30,6 +30,16 @@ export function useSosAlert(id: string) {
     queryKey: sosKeys.detail(id),
     queryFn: () => sosApi.getById(id),
     enabled: Boolean(id),
+    refetchInterval: id ? 4_000 : false,
+  });
+}
+
+export function useMyActiveSos(enabled = true) {
+  return useQuery({
+    queryKey: ["sos", "mine", "active"],
+    queryFn: sosApi.getMyActive,
+    enabled,
+    refetchInterval: 4_000,
   });
 }
 

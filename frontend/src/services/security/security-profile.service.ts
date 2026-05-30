@@ -135,9 +135,26 @@ export async function fetchLiveOperations() {
       id: string;
       status: string;
       riderName: string;
+      riderPhone: string;
       captainName: string | null;
+      captainPhone: string | null;
+      captainId: string | null;
       pickup: string;
       dropoff: string;
+      pickupLat: number;
+      pickupLng: number;
+      dropLat: number;
+      dropLng: number;
+      captainLat: number | null;
+      captainLng: number | null;
+      vehicleType: string | null;
+    }>;
+    captains: Array<{
+      id: string;
+      name: string;
+      lat: number;
+      lng: number;
+      vehicleType: string | null;
     }>;
   };
 }

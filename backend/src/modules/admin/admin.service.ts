@@ -1139,10 +1139,10 @@ export class AdminService {
         where: { status: { in: activeStatuses } },
         orderBy: { updatedAt: 'desc' },
         include: {
-          rider: { include: { user: { select: { fullName: true } } } },
+          rider: { include: { user: { select: { fullName: true, phoneNumber: true } } } },
           captain: {
             include: {
-              user: { select: { fullName: true } },
+              user: { select: { fullName: true, phoneNumber: true } },
               vehicle: { select: { vehicleType: true, vehicleNumber: true } },
             },
           },
@@ -1184,6 +1184,40 @@ export class AdminService {
       }),
     );
 
+    const activeRidesWithLocations = await Promise.all(
+      activeRides.map(async (ride) => {
+        let captainLat: number | null = ride.captain?.currentLatitude ?? null;
+        let captainLng: number | null = ride.captain?.currentLongitude ?? null;
+
+        if (ride.captainId) {
+          const redisLoc = await this.rideRedis.getCaptainLocation(ride.captainId);
+          if (redisLoc?.lat != null && redisLoc?.lng != null) {
+            captainLat = redisLoc.lat;
+            captainLng = redisLoc.lng;
+          }
+        }
+
+        return {
+          id: ride.id,
+          status: ride.status.toLowerCase(),
+          riderName: ride.rider.user.fullName,
+          riderPhone: ride.rider.user.phoneNumber,
+          captainName: ride.captain?.user.fullName ?? null,
+          captainPhone: ride.captain?.user.phoneNumber ?? null,
+          captainId: ride.captainId,
+          pickup: ride.pickupAddress,
+          dropoff: ride.dropAddress,
+          pickupLat: ride.pickupLatitude,
+          pickupLng: ride.pickupLongitude,
+          dropLat: ride.dropLatitude,
+          dropLng: ride.dropLongitude,
+          captainLat,
+          captainLng,
+          vehicleType: ride.captain?.vehicle?.vehicleType ?? ride.vehicleType,
+        };
+      }),
+    );
+
     return {
       stats: {
         activeRides: activeRides.length,
@@ -1193,20 +1227,7 @@ export class AdminService {
         ).length,
         activeSos: activeSosCount,
       },
-      activeRides: activeRides.map((ride) => ({
-        id: ride.id,
-        status: ride.status.toLowerCase(),
-        riderName: ride.rider.user.fullName,
-        captainName: ride.captain?.user.fullName ?? null,
-        pickup: ride.pickupAddress,
-        dropoff: ride.dropAddress,
-        pickupLat: ride.pickupLatitude,
-        pickupLng: ride.pickupLongitude,
-        dropLat: ride.dropLatitude,
-        dropLng: ride.dropLongitude,
-        captainLat: ride.captain?.currentLatitude ?? null,
-        captainLng: ride.captain?.currentLongitude ?? null,
-      })),
+      activeRides: activeRidesWithLocations,
       captains: captainMarkers.filter(
         (c) => c.lat != null && c.lng != null && Number.isFinite(c.lat),
       ),
