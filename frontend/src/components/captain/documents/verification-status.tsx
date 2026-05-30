@@ -25,6 +25,7 @@ import {
   uploadCaptainDocument,
   type CaptainDocumentTypeKey,
 } from "@/services/captain/captain-documents.service";
+import { compressDocumentFile } from "@/lib/upload/compress-document-file";
 
 type StatusConfig = {
   label: string;
@@ -73,7 +74,8 @@ export default function VerificationStatus() {
 
     setUploadingKey(key);
     try {
-      await uploadCaptainDocument(key, file);
+      const prepared = await compressDocumentFile(file);
+      await uploadCaptainDocument(key, prepared);
       await invalidateDocuments();
       toast.success(
         "Documents submitted successfully. Verification may take 24–48 hours. You will be notified once the review is complete.",
@@ -178,7 +180,7 @@ export default function VerificationStatus() {
                         fileInputRefs.current[doc.key] = el;
                       }}
                       type="file"
-                      accept="image/*,.pdf"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
                       className="hidden"
                       onChange={(e) =>
                         void handleFileChange(

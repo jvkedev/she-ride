@@ -24,6 +24,8 @@ import {
 
 import { FileInterceptor } from '@nestjs/platform-express';
 
+import { documentUploadOptions, imageUploadOptions } from '../../common/cloudinary/multer-upload.options';
+
 
 
 import { SkipThrottle } from '@nestjs/throttler';
@@ -95,7 +97,7 @@ export class CaptainController {
 
   @Post('profile/photo')
 
-  @UseInterceptors(FileInterceptor('photo'))
+  @UseInterceptors(FileInterceptor('photo', imageUploadOptions))
 
   async uploadPhoto(
 
@@ -120,7 +122,7 @@ export class CaptainController {
   }
 
   @Post('documents/:type')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', documentUploadOptions))
   uploadDocument(
     @CurrentUser() user: JwtUser,
     @Param('type') type: string,

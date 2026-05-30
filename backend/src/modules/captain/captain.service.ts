@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DocumentStatus, RideStatus, AuditAction } from '@prisma/client';
 import { UpdateCaptainProfileDto } from './dto/update-captain-profile.dto';
-import { v2 as cloudinary } from 'cloudinary';
+import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
 import { RideRedisService } from '../redis/ride-redis.service';
 import { CaptainVerificationService } from './captain-verification.service';
 
@@ -12,6 +12,7 @@ export class CaptainService {
     private prisma: PrismaService,
     private rideRedis: RideRedisService,
     private verificationService: CaptainVerificationService,
+    private cloudinary: CloudinaryService,
   ) {}
 
   async getDashboard(userId: string) {
@@ -199,23 +200,10 @@ export class CaptainService {
     userId: string,
     file: Express.Multer.File,
   ): Promise<{ profileImage: string }> {
-    // Upload buffer to Cloudinary
-    const result = await new Promise<{ secure_url: string }>(
-      (resolve, reject) => {
-        cloudinary.uploader
-          .upload_stream(
-            { folder: 'captain-photos', resource_type: 'image' },
-            (error, result) => {
-              if (error || !result)
-                reject(new Error(error?.message ?? 'Cloudinary upload failed'));
-              else resolve(result);
-            },
-          )
-          .end(file.buffer);
-      },
+    const profileImage = await this.cloudinary.uploadFile(
+      file,
+      'captain-photos',
     );
-
-    const profileImage = result.secure_url;
 
     await this.prisma.captain.update({
       where: { userId },

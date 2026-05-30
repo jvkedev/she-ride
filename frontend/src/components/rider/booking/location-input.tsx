@@ -13,13 +13,13 @@ import {
 
 import {
   GeolocationFailure,
-  getCurrentLocation,
   getGeolocationErrorMessage,
   getLocationSourceLabel,
-  isAcceptablePickupFix,
   isGeolocationSupported,
   POOR_ACCURACY_M,
   queryGeolocationPermission,
+  RIDER_LOCATION_TIMEOUT_MS,
+  waitForCaptainStyleLocation,
   type GeolocationResult,
   type LocationSource,
 } from "@/lib/maps/geolocation";
@@ -226,23 +226,11 @@ export default function LocationInput({
         return;
       }
 
-      log("getCurrentLocation start (strict GPS-only, up to 60s)");
+      log("waitForCaptainStyleLocation start (same as captain dashboard)");
 
-      const coords = await getCurrentLocation({
-        overallTimeoutMs: 60_000,
-        mode: "live",
-        allowApproximateFallback: false,
-      });
+      const coords = await waitForCaptainStyleLocation(RIDER_LOCATION_TIMEOUT_MS);
 
       if (requestId !== activeRequestRef.current) return;
-
-      if (!isAcceptablePickupFix(coords)) {
-        log("fix rejected for pickup", coords);
-        setLocationError(
-          `Could not get a precise GPS fix (±${Math.round(coords.accuracy)}m, ${getLocationSourceLabel(coords.source)}). Enable GPS in Windows Settings → Privacy → Location, then try again outdoors.`,
-        );
-        return;
-      }
 
       await applyCurrentLocation(coords);
     } catch (err) {
@@ -357,7 +345,7 @@ export default function LocationInput({
             className={cn("h-4 w-4 shrink-0", locating && "animate-spin")}
           />
           {locating
-            ? "Getting GPS location (may take up to 60s)…"
+            ? "Getting your location…"
             : currentLocationLabel}
         </button>
       )}

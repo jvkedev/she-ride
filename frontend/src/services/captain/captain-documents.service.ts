@@ -36,6 +36,14 @@ export async function getCaptainDocuments(): Promise<CaptainDocumentsResponse> {
   return res.json() as Promise<CaptainDocumentsResponse>;
 }
 
+function parseApiError(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const record = body as { message?: string | string[] };
+  if (Array.isArray(record.message)) return record.message.join(". ");
+  if (typeof record.message === "string") return record.message;
+  return null;
+}
+
 export async function uploadCaptainDocument(
   documentKey: CaptainDocumentTypeKey,
   file: File,
@@ -54,10 +62,10 @@ export async function uploadCaptainDocument(
   );
 
   if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as
-      | { message?: string }
-      | null;
-    throw new Error(body?.message ?? "Failed to upload document");
+    const body = await res.json().catch(() => null);
+    throw new Error(
+      parseApiError(body) ?? "Failed to upload document. Try a smaller JPG/PNG under 5MB.",
+    );
   }
 
   return res.json() as Promise<CaptainDocumentsResponse>;

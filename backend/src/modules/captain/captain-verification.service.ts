@@ -180,7 +180,7 @@ export class CaptainVerificationService {
     });
     if (!captain) throw new NotFoundException('Captain profile not found');
 
-    const documentUrl = await this.cloudinary.uploadImage(
+    const documentUrl = await this.cloudinary.uploadFile(
       file,
       `captain-documents/${captain.id}`,
     );

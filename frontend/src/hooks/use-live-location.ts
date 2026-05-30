@@ -53,7 +53,7 @@ export function useLiveLocation(options: UseLiveLocationOptions = {}) {
     try {
       const result = await getCurrentLocation({
         mode,
-        overallTimeoutMs: 45000,
+        overallTimeoutMs: 20_000,
       });
       if (id !== requestRef.current) return;
       setLocation(toState(result));
